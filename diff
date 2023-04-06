@@ -1,0 +1,19 @@
+#!/bin/sh
+set -e
+if test $# -lt 2
+then
+	echo "usage: $0 <start> <stop> [flags]"
+	exit
+fi
+ROOTDIR=tools/mips64
+GCCN64PREFIX=${ROOTDIR}/bin/mips64-elf-
+OBJDUMP=${GCCN64PREFIX}objdump
+OBJDUMPFLAGS="-bbinary -mmips -EB --start-address=${1} --stop-address=${2} -zD"
+dd if=/dev/zero of=build/old.bin bs=1024 count=1 status=none
+dd if=/dev/zero of=build/new.bin bs=1024 count=1 status=none
+cat       firmware.bin >> build/old.bin
+cat build/firmware.bin >> build/new.bin
+${OBJDUMP} ${OBJDUMPFLAGS} build/old.bin > build/old.asm
+${OBJDUMP} ${OBJDUMPFLAGS} build/new.bin > build/new.asm
+shift 2
+diff "$@" build/old.asm build/new.asm | colordiff

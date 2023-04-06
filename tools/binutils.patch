@@ -1,0 +1,22 @@
+--- binutils-2.19.51/gas/dwarf2dbg.h	2009-09-02 00:24:19.000000000 -0700
++++ binutils-2.19.51/gas/dwarf2dbg.h	2009-09-02 00:24:19.000000000 -0700
+@@ -83,7 +83,7 @@
+ 
+ /* True when we've seen a .loc directive recently.  Used to avoid
+    doing work when there's nothing to do.  */
+-bfd_boolean dwarf2_loc_directive_seen;
++extern bfd_boolean dwarf2_loc_directive_seen;
+ 
+ /* True when we're supposed to set the basic block mark whenever a label
+    is seen.  Unless the target is doing Something Weird, just call 
+--- binutils-2.19.51/binutils/readelf.c	2009-08-17 01:34:37.000000000 -0700
++++ binutils-2.19.51/binutils/readelf.c	2009-08-17 01:34:37.000000000 -0700
+@@ -149,7 +149,7 @@
+ #include "filenames.h"
+ 
+ char * program_name = "readelf";
+-int do_wide;
++extern int do_wide;
+ static long archive_file_offset;
+ static unsigned long archive_file_size;
+ static unsigned long dynamic_addr;

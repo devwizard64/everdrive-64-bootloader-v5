@@ -1,0 +1,19 @@
+--- gcc-4.4.0/gcc/toplev.h	2009-02-20 07:20:38.000000000 -0800
++++ gcc-4.4.0/gcc/toplev.h	2009-02-20 07:20:38.000000000 -0800
+@@ -173,6 +173,8 @@
+ /* Return floor of log2, with -1 for zero.  */
+ extern int floor_log2                  (unsigned HOST_WIDE_INT);
+ 
++/* This doesn't work.  */
++#if 0
+ /* Inline versions of the above for speed.  */
+ #if GCC_VERSION >= 3004
+ # if HOST_BITS_PER_WIDE_INT == HOST_BITS_PER_LONG
+@@ -198,6 +200,7 @@
+   return x == (x & -x) && x ? (int) CTZ_HWI (x) : -1;
+ }
+ #endif /* GCC_VERSION >= 3004 */
++#endif
+ 
+ /* Functions used to get and set GCC's notion of in what directory
+    compilation was started.  */

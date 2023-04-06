@@ -1,0 +1,59 @@
+#!/bin/sh
+set -e
+
+cd "$(dirname "$0")"
+ROOTDIR=${PWD}/mips64
+
+BINUTILS_V=2.19.51
+GCC_V=4.4.0
+NEWLIB_V=1.17.0
+
+rm -f -r tmp
+mkdir tmp
+cd tmp
+
+# binutils
+wget -c ftp://sourceware.org/pub/binutils/snapshots/binutils-${BINUTILS_V}.tar.bz2
+tar -xvjf binutils-${BINUTILS_V}.tar.bz2
+rm -f binutils-${BINUTILS_V}.tar.bz2
+patch -p0 < ../binutils.patch
+cd binutils-${BINUTILS_V}
+./configure --prefix=${ROOTDIR} --target=mips64-elf --with-cpu=mips64vr4300 --disable-werror
+make
+make install
+cd ..
+rm -f -r binutils-${BINUTILS_V}
+
+# GCC
+wget -c ftp://sourceware.org/pub/gcc/releases/gcc-${GCC_V}/gcc-${GCC_V}.tar.bz2
+tar -xvjf gcc-${GCC_V}.tar.bz2
+rm -f gcc-${GCC_V}.tar.bz2
+patch -p0 < ../gcc.patch
+mkdir build
+cd build
+CFLAGS_FOR_TARGET="-G0 -O2" ../gcc-${GCC_V}/configure --prefix=${ROOTDIR} --target=mips64-elf --disable-werror --disable-threads --disable-libssp --enable-languages=c --with-newlib --enable-multilib --disable-shared --with-gcc --with-gnu-ld --with-gnu-as --disable-win32-registry --disable-nls --disable-debug --disable-libmudflap --with-system-zlib
+make gcc_cv_prog_makeinfo_modern=no
+make install
+cd ..
+rm -f -r build
+rm -f -r gcc-${GCC_V}
+
+export PATH=${PATH}:${ROOTDIR}/bin
+
+# newlib
+wget -c ftp://sourceware.org/pub/newlib/newlib-${NEWLIB_V}.tar.gz
+tar -xvzf newlib-${NEWLIB_V}.tar.gz
+rm -f newlib-${NEWLIB_V}.tar.gz
+cd newlib-${NEWLIB_V}
+CFLAGS_FOR_TARGET="-G0 -O2" ./configure --prefix=${ROOTDIR} --target=mips64-elf --with-cpu=mips64vr4300 --disable-werror --disable-threads --disable-libssp
+make
+make install
+cd ..
+rm -f -r newlib-${NEWLIB_V}
+
+cd ..
+rm -f -r tmp
+
+echo "****************************************"
+echo "***      Setup was successful.       ***"
+echo "****************************************"
