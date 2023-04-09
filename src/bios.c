@@ -124,8 +124,8 @@ void bios_80000588(void)
 
 void BiDDTblWr(void)
 {
-    u8 sp20[BI_DD_TBL_SIZE];
-    sysPI_wr(sp20, REG_ADDR(REG_DD_TBL), BI_DD_TBL_SIZE);
+    u8 buff[BI_DD_TBL_SIZE];
+    sysPI_wr(buff, REG_ADDR(REG_DD_TBL), BI_DD_TBL_SIZE);
 }
 
 void BiCartRomWr(void *ram, unsigned long cart_address, unsigned long len)
@@ -138,15 +138,15 @@ void bi_reg_wr(u16 reg, u32 val) {
     sysPI_wr(&val, REG_ADDR(reg), 4);
 }
 
-void BiBootCfgClr(u16 a0)
+void BiBootCfgClr(u16 cfg)
 {
-    biBootCfg &= ~a0;
+    biBootCfg &= ~cfg;
     bi_reg_wr(REG_BOOT_CFG, biBootCfg);
 }
 
-void BiBootCfgSet(u16 a0)
+void BiBootCfgSet(u16 cfg)
 {
-    biBootCfg |= a0;
+    biBootCfg |= cfg;
     bi_reg_wr(REG_BOOT_CFG, biBootCfg);
 }
 
@@ -220,9 +220,9 @@ void bi_wr_swap(u8 swap_on) {
     bi_reg_wr(REG_SYS_CFG, biSysCfg);
 }
 
-void BiTimerSet(u16 a0)
+void BiTimerSet(u16 timer)
 {
-    bi_reg_wr(REG_TIMER, a0);
+    bi_reg_wr(REG_TIMER, timer);
 }
 
 u32 BiUsbWrNop(void)
@@ -287,10 +287,10 @@ u32 bi_reg_rd(u16 reg) {
     return val;
 }
 
-u16 BiBootCfgGet(u16 a0)
+u16 BiBootCfgGet(u16 cfg)
 {
     biBootCfg = bi_reg_rd(REG_BOOT_CFG);
-    return biBootCfg & a0;
+    return biBootCfg & cfg;
 }
 
 void BiI2CDatWr(u8 *src, u8 len)
@@ -409,19 +409,19 @@ u8 BiI2CRd(u16 addr, u8 *dst, u16 len)
     return 0;
 }
 
-u8 bios_80000F00(u8 *a0)
+u8 bios_80000F00(u8 *dst)
 {
-    u8 sp20[16];
-    u8 resp = BiI2CRd(0x100, sp20, 16);
+    u8 buff[16];
+    u8 resp = BiI2CRd(0x100, buff, 16);
     if (resp) return resp;
-    a0[0] = sp20[0];
-    a0[1] = sp20[1];
-    a0[2] = sp20[2] & 0x3F;
-    a0[4] = sp20[3] & 0x07;
-    a0[3] = sp20[4];
-    a0[5] = sp20[5] & 0x1F;
-    a0[6] = sp20[6];
-    a0[7] = sp20[15] & 0x80;
+    dst[0] = buff[0];
+    dst[1] = buff[1];
+    dst[2] = buff[2] & 0x3F;
+    dst[4] = buff[3] & 0x07;
+    dst[3] = buff[4];
+    dst[5] = buff[5] & 0x1F;
+    dst[6] = buff[6];
+    dst[7] = buff[15] & 0x80;
     return resp;
 }
 
@@ -651,44 +651,44 @@ u8 bi_usb_rd_end(void *dst) {
     return 0;
 }
 
-s32 bios_80001610(void)
+u32 BiRTCInfo(void)
 {
     SysPifmacro(pifCmdRTCInfo, pifRespRTCInfo);
     return pifRespRTCInfo[1] >> 32;
 }
 
-void bios_80001650(u8 *a0, u8 a1)
+void BiRTCSet(u8 *src, u8 flag)
 {
-    u8 sp20[8];
-    memset(sp20, 0, 8);
-    if (a0) memcpy(sp20, a0, 7);
-    sp20[7] = a1 != 0;
-    sysPI_wr(sp20, REG_ADDR(REG_RTC_SET), 8);
+    u8 buff[8];
+    memset(buff, 0, 8);
+    if (src) memcpy(buff, src, 7);
+    buff[7] = flag != 0;
+    sysPI_wr(buff, REG_ADDR(REG_RTC_SET), 8);
 }
 
-u8 bios_800016E0(u8 *a0)
+u8 bios_800016E0(u8 *src)
 {
-    u8 sp20[16];
-    memset(sp20, 0, 16);
-    sp20[0] = a0[0];
-    sp20[1] = a0[1];
-    sp20[2] = a0[2] & 0x3F;
-    sp20[3] = a0[4] & 0x07;
-    sp20[4] = a0[3];
-    sp20[5] = a0[5] & 0x1F;
-    sp20[6] = a0[6];
-    return BiI2CWr(0x100, sp20, 16);
+    u8 buff[16];
+    memset(buff, 0, 16);
+    buff[0] = src[0];
+    buff[1] = src[1];
+    buff[2] = src[2] & 0x3F;
+    buff[3] = src[4] & 0x07;
+    buff[4] = src[3];
+    buff[5] = src[5] & 0x1F;
+    buff[6] = src[6];
+    return BiI2CWr(0x100, buff, 16);
 }
 
 void BiPiFill(u8 c, unsigned long pi_address, unsigned long len)
 {
-    u8 sp20[2048];
+    u8 buff[2048];
     int n = 2048;
-    memset(sp20, c, 2048);
+    memset(buff, c, 2048);
     while (len)
     {
         if (n > len) n = len;
-        sysPI_wr(sp20, pi_address, n);
+        sysPI_wr(buff, pi_address, n);
         pi_address += n;
         len -= n;
     }
@@ -706,19 +706,19 @@ void BiSramFill(u8 c, unsigned long sram_address, unsigned long len)
     bi_game_cfg_set(SAVE_OFF);
 }
 
-void bios_80001830(u8 *a0)
+void BiRTCGet(u8 *dst)
 {
-    u8 sp20[8];
+    u8 buff[8];
     pifCmdEepRead[0] = 0x02090702;
     SysPifmacro(pifCmdEepRead, pifRespEepRead);
-    memcopy(&pifRespEepRead[1], sp20, 8);
-    a0[0] = sp20[0];
-    a0[1] = sp20[1];
-    a0[2] = sp20[2] & 0x7F;
-    a0[3] = sp20[3];
-    a0[4] = sp20[4];
-    a0[5] = sp20[5];
-    a0[6] = sp20[6];
+    memcopy(&pifRespEepRead[1], buff, 8);
+    dst[0] = buff[0];
+    dst[1] = buff[1];
+    dst[2] = buff[2] & 0x7F;
+    dst[3] = buff[3];
+    dst[4] = buff[4];
+    dst[5] = buff[5];
+    dst[6] = buff[6];
 }
 
 u8 bi_ram_to_sd(void *src, u16 slen) {
@@ -771,68 +771,70 @@ u8 bi_ram_to_sd(void *src, u16 slen) {
     return 0;
 }
 
-u8 bios_80001A80(void *a0, unsigned int a1)
+/* Program the LATTICE iCE40 */
+u8 BiIOMWr(void *src, u32 len)
 {
     u8 resp = 0;
-    u8 sp20[32];
+    u8 buff[32];
     u32 pwd = IO_READ(PI_BSD_DOM1_PWD_REG);
     u16 boot_cfg = bi_reg_rd(REG_BOOT_CFG);
     IO_WRITE(PI_BSD_DOM1_PWD_REG, 0x14);
-    bi_reg_wr(REG_IOM_CFG, IOM_CFG_SS|IOM_CFG_RST|IOM_CFG_ACT);
+    bi_reg_wr(REG_IOM_CFG, IOM_CFG_ACT|IOM_CFG_RST|IOM_CFG_SS);
     sleep(5);
     bi_reg_wr(REG_IOM_CFG, IOM_CFG_ACT);
     sleep(5);
-    bi_reg_wr(REG_IOM_CFG, IOM_CFG_RST|IOM_CFG_ACT);
+    bi_reg_wr(REG_IOM_CFG, IOM_CFG_ACT|IOM_CFG_RST);
     sleep(5);
-    while (a1)
+    while (len)
     {
-        unsigned int n = 512;
-        if (n > a1) n = a1;
-        sysPI_wr(a0, REG_ADDR(REG_IOM_DAT), n);
-        a0 += n;
-        a1 -= n;
+        u32 n = 512;
+        if (n > len) n = len;
+        sysPI_wr(src, REG_ADDR(REG_IOM_DAT), n);
+        src += n;
+        len -= n;
     }
-    memset(sp20, 0xFF, 32);
-    sysPI_wr(sp20, REG_ADDR(REG_IOM_DAT), 32);
-    bi_reg_wr(REG_IOM_CFG, IOM_CFG_SS|IOM_CFG_RST);
+    memset(buff, 0xFF, 32);
+    sysPI_wr(buff, REG_ADDR(REG_IOM_DAT), 32);
+    bi_reg_wr(REG_IOM_CFG, IOM_CFG_RST|IOM_CFG_SS);
     IO_WRITE(PI_BSD_DOM1_PWD_REG, pwd);
     sleep(5);
-    if (!(bi_reg_rd(REG_IOM_CFG) & 1)) resp = BI_ERR_FPG_CFG;
+    if (!(bi_reg_rd(REG_IOM_CFG) & IOM_STA_CDN)) resp = BI_ERR_FPG_CFG;
     bi_reg_wr(REG_BOOT_CFG, boot_cfg);
     return resp;
 }
 
-u8 bios_80001BF0(void *a0, unsigned int a1)
+/* Program the ALTERA Cyclone IV */
+u8 BiFPGAWr(void *src, u32 len)
 {
     u8 resp = 0;
-    u8 sp20[256];
+    u8 buff[256];
     u32 pwd = IO_READ(PI_BSD_DOM1_PWD_REG);
     IO_WRITE(PI_BSD_DOM1_PWD_REG, 0x14);
     bi_reg_wr(REG_FPG_CFG, 0);
     sleep(5);
-    bi_reg_wr(REG_FPG_CFG, 1);
+    bi_reg_wr(REG_FPG_CFG, FPG_CFG_NCFG);
     sleep(5);
-    while (a1)
+    while (len)
     {
-        unsigned int n = 512;
-        if (n > a1) n = a1;
-        sysPI_wr(a0, REG_ADDR(REG_FPG_DAT), n);
-        a0 += n;
-        a1 -= n;
+        u32 n = 512;
+        if (n > len) n = len;
+        sysPI_wr(src, REG_ADDR(REG_FPG_DAT), n);
+        src += n;
+        len -= n;
     }
-    memset(sp20, 0xFF, 256);
+    memset(buff, 0xFF, 256);
     /* This can't be right. */
     resp = BI_ERR_FPG_CFG;
     u32 tout = 0;
     while (tout != 2048)
     {
-        if (++tout && (bi_reg_rd(REG_FPG_CFG) & 1))
+        if (++tout && (bi_reg_rd(REG_FPG_CFG) & FPG_STA_CDON))
         {
             resp = 0;
             tout = 2048;
             continue;
         }
-        sysPI_wr(sp20, REG_ADDR(REG_FPG_DAT), 256);
+        sysPI_wr(buff, REG_ADDR(REG_FPG_DAT), 256);
     }
     IO_WRITE(PI_BSD_DOM1_PWD_REG, pwd);
     sleep(5);

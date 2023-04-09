@@ -248,14 +248,14 @@ u8 usbListener();
 /* bios.c */
 void bios_80000568(void);
 void BiCartRomWr(void *ram, unsigned long cart_address, unsigned long len);
-void BiBootCfgClr(u16 a0);
-void BiBootCfgSet(u16 a0);
+void BiBootCfgClr(u16 cfg);
+void BiBootCfgSet(u16 cfg);
 void BiLockRegs(void);
 void BiCartRomRd(void *ram, unsigned long cart_address, unsigned long len);
 int BiBootRomRd(void *ram, unsigned long cart_address, unsigned long len);
-u16 BiBootCfgGet(u16 a0);
+u16 BiBootCfgGet(u16 cfg);
 void BiCartRomFill(u8 c, unsigned long cart_address, unsigned long len);
-u8 bios_80001BF0(void *, unsigned int);
+u8 BiFPGAWr(void *src, u32 len);
 
 /* main.c */
 void MainBootOS(void);
@@ -267,7 +267,7 @@ u8 fat_80004820(u8 *, int);
 int fat_80004870(void *);
 
 /* sys.c */
-void sys_80004D20(int);
+void gSetY(u8 y);
 void sys_80004D90(void);
 void sys_80004E58(u8 *str);
 void sys_80005100(int, int, int, int, int);

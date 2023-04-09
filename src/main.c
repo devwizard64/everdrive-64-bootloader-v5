@@ -86,7 +86,7 @@ void printError(u8 err)
     sys_80004E58((u8 *)"SN:");
     gAppendHex16(mainSerialNo);
     sys_80004D90();
-    sys_80004D20(15);
+    gSetY(15);
     if (err >= 0xC0 && err < 0xCB)
     {
         sys_80005288((u8 *)"SD card not found");
@@ -97,7 +97,7 @@ void printError(u8 err)
     }
     else if (err == 0xF0 || err == 0xF7 || err == 0xF5)
     {
-        sys_80004D20(10);
+        gSetY(10);
         sys_80005288((u8 *)"File not found: SD:/ED64/OS64.V64");
         sys_80004E58((u8 *)"");
         sys_80004E58((u8 *)"");
@@ -114,7 +114,7 @@ void printError(u8 err)
     }
     else if (err == 0xF8)
     {
-        sys_80004D20(14);
+        gSetY(14);
         sys_80005288((u8 *)"Unknown file system");
         sys_80004E58((u8 *)"");
         sys_80005288((u8 *)"Please use FAT32");
@@ -147,7 +147,7 @@ u8 MainLoadOS(void)
     mainSerialNo = (s16)sp1428[10] << 8 | sp1428[11];
     if (!BiBootCfgGet(BI_BCFG_BOOTMOD))
     {
-        resp = bios_80001BF0(fpga_data, fpga_data_len);
+        resp = BiFPGAWr(fpga_data, fpga_data_len);
         if (resp) return resp;
         bi_init();
     }

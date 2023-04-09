@@ -202,106 +202,30 @@ void gSetXY(u8 x, u8 y) {
     g_last_y = y;
 }
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-"/*0x80004CD0*/  lui     $v1, %hi(g_last_y)\n"
-"/*0x80004CD4*/  lbu     $v0, %lo(g_last_y)($v1)\n"
-"/*0x80004CD8*/  andi    $a0, $a0, 0x00FF\n"
-"/*0x80004CDC*/  sll     $a2, $v0, 3\n"
-"/*0x80004CE0*/  sll     $a1, $v0, 5\n"
-"/*0x80004CE4*/  addu    $a1, $a2, $a1\n"
-"/*0x80004CE8*/  lui     $a2, %hi(g_buff)\n"
-"/*0x80004CEC*/  addu    $a1, $a0, $a1\n"
-"/*0x80004CF0*/  lw      $a3, %lo(g_buff)($a2)\n"
-"/*0x80004CF4*/  sll     $a2, $a1, 1\n"
-"/*0x80004CF8*/  addu    $a3, $a3, $a2\n"
-"/*0x80004CFC*/  lui     $a2, %hi(g_disp_ptr)\n"
-"/*0x80004D00*/  sw      $a3, %lo(g_disp_ptr)($a2)\n"
-"/*0x80004D04*/  sb      $v0, %lo(g_last_y)($v1)\n"
-"/*0x80004D08*/  lui     $a2, %hi(g_last_x)\n"
-"/*0x80004D0C*/  lui     $v0, %hi(g_cons_ptr)\n"
-"/*0x80004D10*/  sb      $a0, %lo(g_last_x)($a2)\n"
-"/*0x80004D14*/  jr      $ra\n"
-"/*0x80004D18*/  sh      $a1, %lo(g_cons_ptr)($v0)\n"
-"/*0x80004D1C*/  nop\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+void gSetX(u8 x) {
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-".globl sys_80004D20\n"
-"sys_80004D20:\n"
-"/*0x80004D20*/  andi    $a0, $a0, 0x00FF\n"
-"/*0x80004D24*/  lui     $v1, %hi(g_last_x)\n"
-"/*0x80004D28*/  lbu     $a1, %lo(g_last_x)($v1)\n"
-"/*0x80004D2C*/  sll     $a2, $a0, 3\n"
-"/*0x80004D30*/  sll     $v0, $a0, 5\n"
-"/*0x80004D34*/  addu    $v0, $a2, $v0\n"
-"/*0x80004D38*/  lui     $a2, %hi(g_buff)\n"
-"/*0x80004D3C*/  addu    $v0, $a1, $v0\n"
-"/*0x80004D40*/  lw      $a3, %lo(g_buff)($a2)\n"
-"/*0x80004D44*/  sb      $a1, %lo(g_last_x)($v1)\n"
-"/*0x80004D48*/  sll     $a2, $v0, 1\n"
-"/*0x80004D4C*/  lui     $v1, %hi(g_last_y)\n"
-"/*0x80004D50*/  addu    $a3, $a3, $a2\n"
-"/*0x80004D54*/  sb      $a0, %lo(g_last_y)($v1)\n"
-"/*0x80004D58*/  lui     $a2, %hi(g_disp_ptr)\n"
-"/*0x80004D5C*/  lui     $v1, %hi(g_cons_ptr)\n"
-"/*0x80004D60*/  sw      $a3, %lo(g_disp_ptr)($a2)\n"
-"/*0x80004D64*/  jr      $ra\n"
-"/*0x80004D68*/  sh      $v0, %lo(g_cons_ptr)($v1)\n"
-"/*0x80004D6C*/  nop\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+    gSetXY(x, g_last_y);
+}
 
-u8 sys_80004D70(void)
+void gSetY(u8 y) {
+
+    gSetXY(g_last_x, y);
+}
+
+u8 gGetX(void)
 {
     return g_last_x;
 }
 
-u8 sys_80004D80(void)
+u8 gGetY(void)
 {
     return g_last_y;
 }
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-".globl sys_80004D90\n"
-"sys_80004D90:\n"
-"/*0x80004D90*/  lui     $v0, %hi(g_buff)\n"
-"/*0x80004D94*/  lw      $a0, %lo(g_buff)($v0)\n"
-"/*0x80004D98*/  lui     $v1, %hi(g_cons_ptr)\n"
-"/*0x80004D9C*/  li      $a1, 0x0052\n"
-"/*0x80004DA0*/  addiu   $a0, $a0, 0x00A4\n"
-"/*0x80004DA4*/  sh      $a1, %lo(g_cons_ptr)($v1)\n"
-"/*0x80004DA8*/  lui     $v1, %hi(g_disp_ptr)\n"
-"/*0x80004DAC*/  li      $v0, 0x0002\n"
-"/*0x80004DB0*/  sw      $a0, %lo(g_disp_ptr)($v1)\n"
-"/*0x80004DB4*/  lui     $v1, %hi(g_last_y)\n"
-"/*0x80004DB8*/  sb      $v0, %lo(g_last_y)($v1)\n"
-"/*0x80004DBC*/  lui     $v1, %hi(g_last_x)\n"
-"/*0x80004DC0*/  jr      $ra\n"
-"/*0x80004DC4*/  sb      $v0, %lo(g_last_x)($v1)\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+void sys_80004D90(void)
+{
+    gSetXY(2, 2);
+}
 
 asm(
 ".text\n"
@@ -1785,42 +1709,24 @@ void gDrawChar8X8(u32 val, u32 x, u32 y) {
     }
 }
 
-void gVblank() {
+void gVsync() {
 
     while (vregs[4] != 0x200);
 }
 
-void gVsync() {
+void gVblank() {
 
     while (vregs[4] == 0x200);
     while (vregs[4] != 0x200);
 }
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-"/*0x80005E60*/  lui     $a0, 0xA4400010 >> 16\n"
-"/*0x80005E64*/  lui     $v0, %hi(vregs)\n"
-"/*0x80005E68*/  sw      $a0, %lo(vregs)($v0)\n"
-"/*0x80005E6C*/  ori     $a0, 0xA4400010 & 0xFFFF\n"
-".L80005E70:\n"
-"/*0x80005E70*/  lw      $v0, 0x0000($a0)\n"
-"/*0x80005E74*/  sltiu   $v0, $v0, 0x000B\n"
-"/*0x80005E78*/  beqz    $v0, .L80005E70\n"
-"/*0x80005E7C*/  lui     $v1, %hi(0xA4400000)\n"
-"/*0x80005E80*/  ori     $v0, $v1, 0x0024\n"
-"/*0x80005E84*/  sw      $zero, %lo(0xA4400000)($v1)\n"
-"/*0x80005E88*/  sw      $zero, 0x0000($v0)\n"
-"/*0x80005E8C*/  jr      $ra\n"
-"/*0x80005E90*/  nop\n"
-"/*0x80005E94*/  nop\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+void sys_80005E60(void)
+{
+    vregs = (vu32 *)0xA4400000;
+    while (IO_READ(VI_CUR_LINE) > 10);
+    IO_WRITE(VI_CONTROL, 0);
+    IO_WRITE(VI_H_LIMITS, 0);
+}
 
 u8 sys_80005E98(void)
 {
@@ -1974,7 +1880,7 @@ void gRepaint() {
     }
 
     data_cache_hit_writeback(screen.current, screen.buff_len * 2);
-    gVblank();
+    gVsync();
     vregs[1] = (vu32) screen.current;
 
 }
@@ -2052,67 +1958,6 @@ void sysInit() {
 
 }
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-"/*0x800064C8*/  andi    $v0, $a0, 0xFFFF\n"
-"/*0x800064CC*/  andi    $a1, $a1, 0xFFFF\n"
-"/*0x800064D0*/  divu    $zero, $v0, $a1\n"
-"/*0x800064D4*/  teq     $a1, $zero, 7\n"
-"/*0x800064D8*/  mfhi    $v1\n"
-"/*0x800064DC*/  andi    $v1, $v1, 0xFFFF\n"
-"/*0x800064E0*/  beqz    $v1, .L800064F4\n"
-"/*0x800064E4*/  nop\n"
-"/*0x800064E8*/  addu    $v0, $a1, $v0\n"
-"/*0x800064EC*/  subu    $v0, $v0, $v1\n"
-"/*0x800064F0*/  andi    $v0, $v0, 0xFFFF\n"
-".L800064F4:\n"
-"/*0x800064F4*/  jr      $ra\n"
-"/*0x800064F8*/  nop\n"
-"/*0x800064FC*/  nop\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
-
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-"/*0x80006500*/  andi    $a1, $a1, 0xFFFF\n"
-"/*0x80006504*/  beqz    $a1, .L8000654C\n"
-"/*0x80006508*/  daddu   $v0, $zero, $zero\n"
-"/*0x8000650C*/  addiu   $a1, $a1, -0x0001\n"
-"/*0x80006510*/  addiu   $v0, $a0, 0x0001\n"
-"/*0x80006514*/  andi    $a1, $a1, 0xFFFF\n"
-"/*0x80006518*/  addu    $a1, $v0, $a1\n"
-"/*0x8000651C*/  daddu   $v1, $zero, $zero\n"
-"/*0x80006520*/  daddu   $v0, $zero, $zero\n"
-"/*0x80006524*/  nop\n"
-".L80006528:\n"
-"/*0x80006528*/  lbu     $a2, 0x0000($a0)\n"
-"/*0x8000652C*/  addiu   $a0, $a0, 0x0001\n"
-"/*0x80006530*/  addu    $v1, $v1, $a2\n"
-"/*0x80006534*/  andi    $v1, $v1, 0x00FF\n"
-"/*0x80006538*/  addu    $v0, $v1, $v0\n"
-"/*0x8000653C*/  bne     $a0, $a1, .L80006528\n"
-"/*0x80006540*/  andi    $v0, $v0, 0x00FF\n"
-"/*0x80006544*/  sll     $v1, $v1, 8\n"
-"/*0x80006548*/  or      $v0, $v1, $v0\n"
-".L8000654C:\n"
-"/*0x8000654C*/  jr      $ra\n"
-"/*0x80006550*/  nop\n"
-"/*0x80006554*/  nop\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
-
 const u8 crc_bit_table[256] = {
     0x00, 0x01, 0x04, 0x05, 0x10, 0x11, 0x14, 0x15, 0x40, 0x41, 0x44, 0x45, 0x50, 0x51, 0x54, 0x55,
     0x02, 0x03, 0x06, 0x07, 0x12, 0x13, 0x16, 0x17, 0x42, 0x43, 0x46, 0x47, 0x52, 0x53, 0x56, 0x57,
@@ -2166,6 +2011,46 @@ const u16 crc_16_table[] = {
     0xEF1F, 0xFF3E, 0xCF5D, 0xDF7C, 0xAF9B, 0xBFBA, 0x8FD9, 0x9FF8,
     0x6E17, 0x7E36, 0x4E55, 0x5E74, 0x2E93, 0x3EB2, 0x0ED1, 0x1EF0
 };
+
+u16 sys_800064C8(u16 a0, u16 a1)
+{
+    return a0%a1 ? a0 - a0%a1 + a1 : a0;
+}
+
+asm(
+".text\n"
+".set noreorder\n"
+".set noat\n"
+"\n"
+".balign 8\n"
+"/*0x80006500*/  andi    $a1, $a1, 0xFFFF\n"
+"/*0x80006504*/  beqz    $a1, .L8000654C\n"
+"/*0x80006508*/  daddu   $v0, $zero, $zero\n"
+"/*0x8000650C*/  addiu   $a1, $a1, -0x0001\n"
+"/*0x80006510*/  addiu   $v0, $a0, 0x0001\n"
+"/*0x80006514*/  andi    $a1, $a1, 0xFFFF\n"
+"/*0x80006518*/  addu    $a1, $v0, $a1\n"
+"/*0x8000651C*/  daddu   $v1, $zero, $zero\n"
+"/*0x80006520*/  daddu   $v0, $zero, $zero\n"
+"/*0x80006524*/  nop\n"
+".L80006528:\n"
+"/*0x80006528*/  lbu     $a2, 0x0000($a0)\n"
+"/*0x8000652C*/  addiu   $a0, $a0, 0x0001\n"
+"/*0x80006530*/  addu    $v1, $v1, $a2\n"
+"/*0x80006534*/  andi    $v1, $v1, 0x00FF\n"
+"/*0x80006538*/  addu    $v0, $v1, $v0\n"
+"/*0x8000653C*/  bne     $a0, $a1, .L80006528\n"
+"/*0x80006540*/  andi    $v0, $v0, 0x00FF\n"
+"/*0x80006544*/  sll     $v1, $v1, 8\n"
+"/*0x80006548*/  or      $v0, $v1, $v0\n"
+".L8000654C:\n"
+"/*0x8000654C*/  jr      $ra\n"
+"/*0x80006550*/  nop\n"
+"/*0x80006554*/  nop\n"
+"\n"
+".set reorder\n"
+".set at\n"
+);
 
 #if 0
 u16 sys_80006558(u8 *a0, u16 a1, u16 a2)
