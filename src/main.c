@@ -52,7 +52,7 @@ int main(void)
 void MainShowError(u8 err)
 {
     sysInit();
-    sys_800052F8(gfx_buff);
+    gfx_800052F8(gfx_buff);
     printError(err);
     gRepaint();
     for (;;) usbListener();
@@ -61,17 +61,17 @@ void MainShowError(u8 err)
 void printError(u8 err)
 {
     gSetPal(PAL_G1);
-    sys_80005100(32, 0, 0, 40, 30);
+    gfx_80005100(' ', 0, 0, G_SCREEN_W, G_SCREEN_H);
     gSetPal(PAL_B1);
-    sys_80005100(32, 2, 2, 36, 4);
-    sys_80005100(45, 2, 2, 36, 1);
-    sys_80005100(45, 2, 5, 36, 1);
-    gSetXY(2, 3);
-    sys_80004E58((u8 *)" EverDrive-64 bootloader v");
-    sys_80005290(5);
+    gfx_80005100(' ', G_BORDER_X, G_BORDER_Y, G_SCREEN_W-G_BORDER_X*2, 4);
+    gfx_80005100('-', G_BORDER_X, G_BORDER_Y, G_SCREEN_W-G_BORDER_X*2, 1);
+    gfx_80005100('-', G_BORDER_X, G_BORDER_Y+3, G_SCREEN_W-G_BORDER_X*2, 1);
+    gSetXY(G_BORDER_X, G_BORDER_Y+1);
+    gConsPrint((u8 *)" EverDrive-64 bootloader v");
+    gfx_80005290(5);
     gAppendString((u8 *)".");
     gAppendHex8(0);
-    sys_80004E58((u8 *)" ERROR:");
+    gConsPrint((u8 *)" ERROR:");
     gAppendHex8(err);
     if (mainErrFpg || mainErrSdr)
     {
@@ -80,60 +80,60 @@ void printError(u8 err)
         if (mainErrFpg) gAppendString((u8 *)"+FPG");
     }
     gSetPal(PAL_G1);
-    gSetXY(2, 27);
-    sys_80004E58((u8 *)"2019 krikzz");
-    gSetXY(31, 27);
-    sys_80004E58((u8 *)"SN:");
+    gSetXY(G_BORDER_X, G_SCREEN_H-G_BORDER_Y-1);
+    gConsPrint((u8 *)"2019 krikzz");
+    gSetXY(G_SCREEN_W-G_BORDER_X-7, G_SCREEN_H-G_BORDER_Y-1);
+    gConsPrint((u8 *)"SN:");
     gAppendHex16(mainSerialNo);
-    sys_80004D90();
-    gSetY(15);
+    gfx_80004D90();
+    gSetY(G_SCREEN_H/2);
     if (err >= 0xC0 && err < 0xCB)
     {
-        sys_80005288((u8 *)"SD card not found");
+        gfx_80005288((u8 *)"SD card not found");
     }
     else if (err >= 0xD2 && err < 0xD9)
     {
-        sys_80005288((u8 *)"DISK IO error");
+        gfx_80005288((u8 *)"DISK IO error");
     }
     else if (err == 0xF0 || err == 0xF7 || err == 0xF5)
     {
-        gSetY(10);
-        sys_80005288((u8 *)"File not found: SD:/ED64/OS64.V64");
-        sys_80004E58((u8 *)"");
-        sys_80004E58((u8 *)"");
-        sys_80004E58((u8 *)"");
-        sys_80004E58((u8 *)"INSTRUCTIONS:");
-        sys_80004E58((u8 *)"");
-        sys_80004E58((u8 *)"1)Go to: http://krikzz.com");
-        sys_80004E58((u8 *)"");
-        sys_80004E58((u8 *)"2)Download latest OS64.zip");
-        sys_80004E58((u8 *)"");
-        sys_80004E58((u8 *)"3)Unzip files to hard drive");
-        sys_80004E58((u8 *)"");
-        sys_80004E58((u8 *)"4)Copy ED64 folder to SD card");
+        gSetY(G_SCREEN_H/2 - 5);
+        gfx_80005288((u8 *)"File not found: SD:/ED64/OS64.V64");
+        gConsPrint((u8 *)"");
+        gConsPrint((u8 *)"");
+        gConsPrint((u8 *)"");
+        gConsPrint((u8 *)"INSTRUCTIONS:");
+        gConsPrint((u8 *)"");
+        gConsPrint((u8 *)"1)Go to: http://krikzz.com");
+        gConsPrint((u8 *)"");
+        gConsPrint((u8 *)"2)Download latest OS64.zip");
+        gConsPrint((u8 *)"");
+        gConsPrint((u8 *)"3)Unzip files to hard drive");
+        gConsPrint((u8 *)"");
+        gConsPrint((u8 *)"4)Copy ED64 folder to SD card");
     }
     else if (err == 0xF8)
     {
-        gSetY(14);
-        sys_80005288((u8 *)"Unknown file system");
-        sys_80004E58((u8 *)"");
-        sys_80005288((u8 *)"Please use FAT32");
+        gSetY(G_SCREEN_H/2 - 1);
+        gfx_80005288((u8 *)"Unknown file system");
+        gConsPrint((u8 *)"");
+        gfx_80005288((u8 *)"Please use FAT32");
     }
     else if (err >= 0xF1 && err < 0xFC)
     {
-        sys_80005288((u8 *)"FAT error");
+        gfx_80005288((u8 *)"FAT error");
     }
     else if (err == 0x55)
     {
-        sys_80005288((u8 *)"Hardware error");
+        gfx_80005288((u8 *)"Hardware error");
     }
     else if (err == 0xB3 || err == 0xB4)
     {
-        sys_80005288((u8 *)"FPGA configuration error");
+        gfx_80005288((u8 *)"FPGA configuration error");
     }
     else
     {
-        sys_80005288((u8 *)"Unexpected error");
+        gfx_80005288((u8 *)"Unexpected error");
     }
 }
 

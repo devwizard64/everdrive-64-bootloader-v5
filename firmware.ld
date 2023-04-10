@@ -19,6 +19,7 @@ SECTIONS
         build/src/usb.o(.text);
         build/src/disk.o(.text);
         build/src/fat.o(.text);
+        build/src/gfx.o(.text);
         build/src/sys.o(.text);
         build/src/font.o(.text);
         build/src/fpga_data.o(.text);
@@ -45,6 +46,8 @@ SECTIONS
         build/src/libdragon/display.o(.rodata);
 
         build/src/fat.o(.rodata.str1.8);
+        build/src/gfx.o(.rodata.str1.8);
+        build/src/sys.o(.rodata.str1.8);
         build/src/libdragon/exception.o(.rodata.str1.8);
         tools/mips64/mips64-elf/lib/libc.a:lib_a-impure.o(.rodata.str1.8);
 
@@ -85,6 +88,7 @@ SECTIONS
         build/src/main.o(.scommon);
         build/src/disk.o(.scommon);
         build/src/fat.o(.scommon);
+        build/src/gfx.o(.scommon);
         build/src/sys.o(.scommon);
         build/src/libdragon/display.o(.scommon);
         tools/mips64/mips64-elf/lib/libc.a:lib_a-reent.o(.scommon);

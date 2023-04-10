@@ -15,9 +15,6 @@ asm(
 ".section .rodata.str1.8\n"
 ".globl u_800287D0; u_800287D0: .asciz \"FAT\"; .balign 8\n"
 ".globl u_800287D8; u_800287D8: .asciz \"MSDOS\"; .balign 8\n"
-".globl u_800287E0; u_800287E0: .asciz \"\"; .balign 8\n"
-".globl u_800287E8; u_800287E8: .asciz \":\"; .balign 8\n"
-".globl u_800287F0; u_800287F0: .asciz \".\"; .balign 8\n"
 );
 
 asm(

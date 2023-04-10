@@ -266,23 +266,28 @@ int fat_80003C00(int, int);
 u8 fat_80004820(u8 *, int);
 int fat_80004870(void *);
 
-/* sys.c */
+/* gfx.c */
 void gSetY(u8 y);
-void sys_80004D90(void);
-void sys_80004E58(u8 *str);
-void sys_80005100(int, int, int, int, int);
-void sys_80005288(u8 *str);
-void sys_80005290(int);
-void sys_800052F8(u16 *buff);
-void memcopy(const void *src, void *dest, unsigned long n);
-void memfill(void *s, u8 c, unsigned long n);
+void gfx_80004D90(void);
+void gfx_80005100(u16 chr, u8 x, u8 y, u8 width, u8 height);
+void gfx_80005288(u8 *str);
+void gfx_80005290(int);
+void gfx_800052F8(u16 *buff);
+
+/* sys.c */
+void SysGfxFill(u16 *dst, u16 val, u32 len);
+void memcopy(const void *src, void *dst, u32 len);
+void memfill(void *dst, u8 val, u32 len);
+u8 slen(u8 *str);
+void sys_80005618(int);
+void sys_80005860(u8 *, int);
 void SysPifmacro(u64 *cmd, u64 *resp);
 void sleep(u32 ms);
 void sdCrc16(void *src, u16 *crc_out);
 
 /* fpga_data.s */
 extern u8 fpga_data[];
-extern unsigned int fpga_data_len;
+extern u32 fpga_data_len;
 
 /* sys.c */
 extern u64 pifCmdRTCInfo[];
