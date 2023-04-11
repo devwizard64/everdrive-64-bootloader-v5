@@ -77,7 +77,7 @@ u8 UsbCmdf(u32 *buff)
     if (len > 0x40000) return 0x16;
     resp = bi_usb_rd(data, 512*len);
     if (resp) return resp;
-    resp = BiFPGAWr(data, 512*len);
+    resp = BiMCNWr(data, 512*len);
     return resp;
 }
 

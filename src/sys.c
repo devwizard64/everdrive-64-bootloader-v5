@@ -59,8 +59,10 @@ const u32 pal_320[] = {
 #define SYS_MAX_PIXEL_H   240
 
 void sysDisplayInit();
-void sysPI_rd_safe(void *ram, unsigned long pi_address, unsigned long len);
-void sysPI_wr_safe(void *ram, unsigned long pi_address, unsigned long len);
+void simulate_pif_boot();
+void sysSI_dmaBusy(void);
+void sysExecPIF(void *inblock, void *outblock);
+void sysBlank();
 
 u64 pifCmdRTCInfo[] =
 {
@@ -80,8 +82,11 @@ u64 pifCmdEepRead[] =
 
 BootStrap *sys_boot_strap = (BootStrap *) 0x80000300;
 
+extern u16 *gfx_buff;
 extern u8 font[];
+
 Screen screen;
+
 
 u16 pal[16] = {
     RGB(0, 0, 0), RGB(31, 31, 31), RGB(16, 16, 16), RGB(28, 28, 2),
@@ -97,7 +102,7 @@ u16 hu_8002933E;
 u16 hu_80029340;
 u16 hu_8002A020 = 0;
 
-void gDrawChar8X8(u32 val, u32 x, u32 y) {
+void sysDrawChar8X8(u32 val, u32 x, u32 y) {
 
     u64 tmp;
     u32 font_val;
@@ -132,27 +137,28 @@ void gDrawChar8X8(u32 val, u32 x, u32 y) {
     }
 }
 
-void gVsync() {
-
+void sysBlank() {
     while (vregs[4] != 0x200);
 }
 
-void gVblank() {
+void sysVsync() {
 
     while (vregs[4] == 0x200);
     while (vregs[4] != 0x200);
 }
 
-void SysDisplayClose()
-{
-    vregs = (vu32 *)0xA4400000;
-    while (IO_READ(VI_CUR_LINE) > 10);
-    IO_WRITE(VI_CONTROL, 0);
-    IO_WRITE(VI_H_LIMITS, 0);
+
+void sysDisplayOFF() {
+
+    vregs = (vu32 *) 0xa4400000;
+
+    while (IO_READ(VI_CURRENT_REG) > 10);
+    IO_WRITE(VI_CONTROL_REG, 0);
+    vregs[9] = 0;
+
 }
 
-u8 SysGetRegion()
-{
+u8 sysGetTvType() {
     return sys_boot_strap->region;
 }
 
@@ -166,37 +172,36 @@ u16 SysRandom()
     return hu_8002933E;
 }
 
-void SysSiBusy()
-{
+void sysSI_dmaBusy(void) {
     volatile struct SI_regs_s * const SI_regs = (struct SI_regs_s *) 0xa4800000;
-    while (SI_regs->status & (SI_STATUS_DMA_BUSY|SI_STATUS_IO_BUSY));
+    while (SI_regs->status & (SI_STATUS_DMA_BUSY | SI_STATUS_IO_BUSY));
 }
 
-void SysPifmacro(u64 *cmd, u64 *resp)
+void sysExecPIF(void *inblock, void *outblock)
 {
     volatile struct SI_regs_s * const SI_regs = (struct SI_regs_s *) 0xa4800000;
     void * const PIF_RAM = (void *) 0x1fc007c0;
     u64 sp20[8];
     u64 sp60[8];
     data_cache_hit_writeback_invalidate(sp20, 64);
-    memcopy(cmd, UncachedAddr(sp20), 64);
+    memcopy(inblock, UncachedAddr(sp20), 64);
     disable_interrupts();
-    SysSiBusy();
+    sysSI_dmaBusy();
     MEMORY_BARRIER();
     SI_regs->DRAM_addr = sp20;
     MEMORY_BARRIER();
     SI_regs->PIF_addr_write = PIF_RAM;
     MEMORY_BARRIER();
-    SysSiBusy();
+    sysSI_dmaBusy();
     data_cache_hit_writeback_invalidate(sp60, 64);
     MEMORY_BARRIER();
     SI_regs->DRAM_addr = sp60;
     MEMORY_BARRIER();
     SI_regs->PIF_addr_read = PIF_RAM;
     MEMORY_BARRIER();
-    SysSiBusy();
+    sysSI_dmaBusy();
     enable_interrupts();
-    memcopy(UncachedAddr(sp60), resp, 64);
+    memcopy(UncachedAddr(sp60), outblock, 64);
 }
 
 void sysDisplayInit() {
@@ -242,9 +247,9 @@ void sleep(u32 ms) {
 
 }
 
-void gRepaint() {
+void sysRepaint() {
 
-    u16 *chr_ptr = g_buff;
+    u16 *chr_ptr = gfx_buff;
 
     screen.buff_sw = (screen.buff_sw ^ 1) & 1;
     screen.current = screen.buff[screen.buff_sw];
@@ -253,12 +258,12 @@ void gRepaint() {
     for (u32 y = 0; y < screen.h; y++) {
         for (u32 x = 0; x < screen.w; x++) {
 
-            gDrawChar8X8(*chr_ptr++, x, y);
+            sysDrawChar8X8(*chr_ptr++, x, y);
         }
     }
 
     data_cache_hit_writeback(screen.current, screen.buff_len * 2);
-    gVsync();
+    sysBlank();
     vregs[1] = (vu32) screen.current;
 
 }

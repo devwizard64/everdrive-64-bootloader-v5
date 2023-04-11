@@ -104,10 +104,15 @@ typedef struct {
 
 
 void sysInit();
+void sysRepaint();
+void sysVsync();
+u8 sysGetTvType();
 void sysPI_rd(void *ram, unsigned long pi_address, unsigned long len);
 void sysPI_wr(void *ram, unsigned long pi_address, unsigned long len);
 
-
+/******************************************************************************/
+/* gfx.h                                                                      */
+/******************************************************************************/
 
 #define G_SCREEN_W      40 //screen.w
 #define G_SCREEN_H      30 //screen.h
@@ -127,6 +132,7 @@ void sysPI_wr(void *ram, unsigned long pi_address, unsigned long len);
 #define PAL_WG          0x1700
 #define PAL_RB          0x0500
 
+void gInit(u16 *gfx_mem);
 void gCleanScreen();
 void gConsPrint(u8 *str);
 void gSetXY(u8 x, u8 y);
@@ -137,57 +143,46 @@ void gAppendHex8(u8 val);
 void gAppendHex16(u16 val);
 void gAppendHex32(u32 val);
 void gAppendHex32(u32 val);
-void gRepaint();
-void gVsync();
 
 /******************************************************************************/
 /* bios.h                                                                     */
 /******************************************************************************/
 
-#define BI_SIZE_ROM     0x4000000       //rom size
-#define BI_SIZE_BRM     0x20000         //backup ram size
-
-#define BI_ADDR_ROM    (KSEG1 | 0x10000000)
-#define BI_ADDR_BRM    (KSEG1 | 0x08000000)
+#define BI_ROM_ADDR    (KSEG1 | 0x10000000)
+#define BI_RAM_ADDR    (KSEG1 | 0x08000000)
 
 #define BI_ERR_I2C_CMD          0xB0
 #define BI_ERR_I2C_TOUT         0xB1
 #define BI_ERR_USB_TOUT         0xB2
 #define BI_ERR_FPG_CFG          0xB3
 
-//sd controller speed select. LO speed only for init procedure
-#define BI_DISK_SPD_LO  0x00
-#define BI_DISK_SPD_HI  0x01
+#define BI_DISK_SPD_LO  0
+#define BI_DISK_SPD_HI  1
 
-//bootloader flags
-#define BI_BCFG_BOOTMOD 0x01   
-#define BI_BCFG_SD_INIT 0x02
-#define BI_BCFG_SD_TYPE 0x04
-#define BI_BCFG_GAMEMOD 0x08
+#define BI_BCFG_BOOTMOD 1
+#define BI_BCFG_SD_INIT 2
+#define BI_BCFG_SD_TYPE 4
+#define BI_BCFG_GAMEMOD 8
 #define BI_BCFG_CICLOCK 0x8000
 
-//dd table to know data areas which should be saved
 #define BI_DD_TBL_SIZE  2048
 #define BI_DD_PGE_SIZE  0x8000
 
-#define CART_ID_V2      0xED640007
-#define CART_ID_V3      0xED640008
-#define CART_ID_X7      0xED640013
-#define CART_ID_X5      0xED640014
 
-//game cfg register flags
-#define SAVE_OFF        0x0000
-#define SAVE_EEP4K      0x0001
-#define SAVE_EEP16K     0x0002
-#define SAVE_SRM32K     0x0003
-#define SAVE_SRM96K     0x0004
-#define SAVE_FLASH      0x0005
-#define SAVE_SRM128K    0x0006
-#define SAVE_DD64       0x0010
+#define BI_MIN_USB_SIZE 16
 
-
+#define SAVE_OFF        0
+#define SAVE_EEP4K      1
+#define SAVE_EEP16K     2
+#define SAVE_SRM32K     3
+#define SAVE_SRM96K     4
+#define SAVE_FLASH      5
+#define SAVE_SRM128K    6 
+#define SAVE_MPAK       8
+#define SAVE_DD64       16
 
 void bi_init();
+
 u8 bi_usb_can_rd();
 u8 bi_usb_can_wr();
 u8 bi_usb_rd(void *dst, u32 len);
@@ -206,9 +201,8 @@ u8 bi_sd_to_ram(void *dst, u16 slen);
 u8 bi_sd_to_rom(u32 dst, u16 slen);
 u8 bi_ram_to_sd(void *src, u16 slen);
 
-void bi_game_cfg_set(u8 type); //set save type
+void bi_set_save_type(u8 type);
 void bi_wr_swap(u8 swap_on);
-u8 bi_get_cart_id();
 
 /******************************************************************************/
 /* disk.h                                                                     */
@@ -247,15 +241,15 @@ u8 usbListener();
 
 /* bios.c */
 void bios_80000568();
-void BiCartRomWr(void *ram, unsigned long cart_address, unsigned long len);
+void BiCartRomWr(void *ram, unsigned long rom_address, unsigned long len);
 void BiBootCfgClr(u16 cfg);
 void BiBootCfgSet(u16 cfg);
 void BiLockRegs();
-void BiCartRomRd(void *ram, unsigned long cart_address, unsigned long len);
-int BiBootRomRd(void *ram, unsigned long cart_address, unsigned long len);
+void BiCartRomRd(void *ram, unsigned long rom_address, unsigned long len);
+int BiBootRomRd(void *ram, unsigned long rom_address, unsigned long len);
 u16 BiBootCfgGet(u16 cfg);
-void BiCartRomFill(u8 c, unsigned long cart_address, unsigned long len);
-u8 BiFPGAWr(void *src, u32 len);
+void BiCartRomFill(u8 c, unsigned long rom_address, unsigned long len);
+u8 BiMCNWr(void *src, u32 len);
 
 /* main.c */
 void MainBootOS();
@@ -272,8 +266,6 @@ void GfxResetXY();
 void GfxFillRect(u16 chr, u8 x, u8 y, u8 width, u8 height);
 void GfxPrintCenter(u8 *str);
 void GfxAppendDec(u32 val);
-void GfxInit(u16 *buff);
-extern u16 *g_buff;
 
 /* fmt.c */
 void GfxFill(u16 *dst, u16 val, u32 len);
@@ -285,7 +277,7 @@ void FmtInit(u8 *str);
 void FmtDecBuff(u8 *buff, u32 val);
 
 /* sys.c */
-void SysPifmacro(u64 *cmd, u64 *resp);
+void sysExecPIF(void *inblock, void *outblock);
 void sleep(u32 ms);
 u8 SysDecToBCD(u8 a0);
 void sdCrc16(void *src, u16 *crc_out);

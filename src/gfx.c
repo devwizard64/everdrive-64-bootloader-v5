@@ -1,11 +1,11 @@
 #include "firmware.h"
 
+u16 *gfx_buff;
 u16 *g_disp_ptr;
 u16 g_cur_pal;
 u16 g_cons_ptr;
 u8 g_last_x;
 u8 g_last_y;
-u16 *g_buff;
 
 void gSetPal(u16 pal) {
     g_cur_pal = pal;
@@ -52,7 +52,7 @@ void gAppendHex32(u32 val) {
 void gSetXY(u8 x, u8 y) {
 
     g_cons_ptr = x + y * G_SCREEN_W;
-    g_disp_ptr = &g_buff[g_cons_ptr];
+    g_disp_ptr = &gfx_buff[g_cons_ptr];
     g_last_x = x;
     g_last_y = y;
 }
@@ -84,7 +84,7 @@ void GfxResetXY() {
 
 void gConsPrintLen(u8 *str, u8 len) {
 
-    g_disp_ptr = &g_buff[g_cons_ptr];
+    g_disp_ptr = &gfx_buff[g_cons_ptr];
     g_cons_ptr += G_SCREEN_W;
     g_last_y++;
     gAppendStringLen(str, len);
@@ -97,7 +97,7 @@ void gConsPrint(u8 *str) {
 
 void GfxChangePal(u8 y, u16 pal) {
 
-    u16 *ptr = &g_buff[y * G_SCREEN_W];
+    u16 *ptr = &gfx_buff[y * G_SCREEN_W];
     u8 len = G_SCREEN_W;
     while (len--)
     {
@@ -113,7 +113,7 @@ void GfxFillVLine(u16 chr, u8 x, u8 y, u8 height) {
     u16 val = chr + g_cur_pal;
     while (height--)
     {
-        g_buff[ptr] = val;
+        gfx_buff[ptr] = val;
         ptr += G_SCREEN_W;
     }
 }
@@ -131,7 +131,7 @@ void GfxFillHLine(u16 chr, u8 x, u8 y, u8 width) {
     gSetXY(x, y);
     u16 val = chr + g_cur_pal;
     u16 len = width*2;
-    GfxFill(&g_buff[g_cons_ptr], val, len);
+    GfxFill(&gfx_buff[g_cons_ptr], val, len);
 }
 
 void GfxAppendRect(u16 chr, u8 width, u8 height) {
@@ -140,7 +140,7 @@ void GfxAppendRect(u16 chr, u8 width, u8 height) {
     u16 ptr = g_cons_ptr;
     u8 len = width*2;
     while (height--) {
-        GfxFill(&g_buff[ptr], val, len);
+        GfxFill(&gfx_buff[ptr], val, len);
         ptr += G_SCREEN_W;
     }
 }
@@ -155,7 +155,7 @@ void gCleanScreen() {
 
     g_cur_pal = 0;
     GfxResetXY();
-    GfxFill(g_buff, 0, G_SCREEN_W * G_SCREEN_H * 2);
+    GfxFill(gfx_buff, 0, G_SCREEN_W * G_SCREEN_H * 2);
     gSetPal(PAL_B1);
 }
 
@@ -182,9 +182,9 @@ void GfxAppendDec(u32 val) {
     gAppendString(buff);
 }
 
-void GfxInit(u16 *buff) {
+void gInit(u16 *gfx_mem) {
 
-    g_buff = buff;
+    gfx_buff = gfx_mem;
     gCleanScreen();
     FmtInit(0);
 }

@@ -18,7 +18,7 @@ asm(
 );
 #endif
 
-u16 gfx_buff[G_SCREEN_W * G_SCREEN_H];
+u16 char_buff[G_SCREEN_W * G_SCREEN_H];
 
 void MainShowError(u8);
 void printError(u8);
@@ -52,9 +52,9 @@ int main(void)
 void MainShowError(u8 err)
 {
     sysInit();
-    GfxInit(gfx_buff);
+    gInit(char_buff);
     printError(err);
-    gRepaint();
+    sysRepaint();
     for (;;) usbListener();
 }
 
@@ -147,7 +147,7 @@ u8 MainLoadOS()
     mainSerialNo = (s16)sp1428[10] << 8 | sp1428[11];
     if (!BiBootCfgGet(BI_BCFG_BOOTMOD))
     {
-        resp = BiFPGAWr(fpga_data, fpga_data_len);
+        resp = BiMCNWr(fpga_data, fpga_data_len);
         if (resp) return resp;
         bi_init();
     }

@@ -5,7 +5,7 @@
 #define REG_USB_CFG     0x0004
 #define REG_TIMER       0x000C
 #define REG_BOOT_CFG    0x0010
-#define REG_EDID        0x0014
+#define REG_IOM_VER     0x0014
 #define REG_I2C_CMD     0x0018
 #define REG_I2C_DAT     0x001C
 
@@ -18,9 +18,10 @@
 #define REG_DMA_ADDR    0x8008
 #define REG_DMA_LEN     0x800C
 #define REG_RTC_SET     0x8010
-#define REG_GAM_CFG     0x8018
+#define REG_RAM_CFG     0x8018
 #define REG_IOM_CFG     0x801C
 #define REG_SDIO        0x8020
+#define REG_MCN_VER     0x8040
 #define REG_SDIO_ARD    0x8200
 #define REG_IOM_DAT     0x8400
 #define REG_DD_TBL      0x8800
@@ -128,9 +129,9 @@ void BiDDTblWr()
     sysPI_wr(buff, REG_ADDR(REG_DD_TBL), BI_DD_TBL_SIZE);
 }
 
-void BiCartRomWr(void *ram, unsigned long cart_address, unsigned long len)
+void BiCartRomWr(void *ram, unsigned long rom_address, unsigned long len)
 {
-    sysPI_wr(ram, BI_ADDR_ROM|cart_address, len);
+    sysPI_wr(ram, BI_ROM_ADDR|rom_address, len);
 }
 
 void bi_reg_wr(u16 reg, u32 val) {
@@ -150,9 +151,9 @@ void BiBootCfgSet(u16 cfg)
     bi_reg_wr(REG_BOOT_CFG, biBootCfg);
 }
 
-void bi_game_cfg_set(u8 type) {
+void bi_set_save_type(u8 type) {
 
-    bi_reg_wr(REG_GAM_CFG, type);
+    bi_reg_wr(REG_RAM_CFG, type);
 }
 
 void bi_sd_bitlen(u8 val) {
@@ -242,11 +243,11 @@ void bi_usb_rd_start() {
     bi_reg_wr(REG_USB_CFG, USB_CMD_RD | 512);
 }
 
-void BiSramWr(void *ram, unsigned long sram_address, unsigned long len)
+void BiCartRamWr(void *ram, unsigned long ram_address, unsigned long len)
 {
-    bi_game_cfg_set(SAVE_SRM128K);
-    sysPI_wr(ram, BI_ADDR_BRM|sram_address, len);
-    bi_game_cfg_set(SAVE_OFF);
+    bi_set_save_type(SAVE_SRM128K);
+    sysPI_wr(ram, BI_RAM_ADDR|ram_address, len);
+    bi_set_save_type(SAVE_OFF);
 }
 
 void BiDDTblRd(void *ram)
@@ -254,30 +255,30 @@ void BiDDTblRd(void *ram)
     sysPI_rd(ram, REG_ADDR(REG_DD_TBL), BI_DD_TBL_SIZE);
 }
 
-void BiCartRomRd(void *ram, unsigned long cart_address, unsigned long len)
+void BiCartRomRd(void *ram, unsigned long rom_address, unsigned long len)
 {
-    sysPI_rd(ram, BI_ADDR_ROM|cart_address, len);
+    sysPI_rd(ram, BI_ROM_ADDR|rom_address, len);
 }
 
-int BiBootRomRd(void *ram, unsigned long cart_address, unsigned long len)
+int BiBootRomRd(void *ram, unsigned long rom_address, unsigned long len)
 {
     u32 lat = IO_READ(PI_BSD_DOM1_LAT_REG);
     u32 pwd = IO_READ(PI_BSD_DOM1_PWD_REG);
     IO_WRITE(PI_BSD_DOM1_LAT_REG, 0x42);
     IO_WRITE(PI_BSD_DOM1_PWD_REG, 0x16);
     BiBootRomOn();
-    BiCartRomRd(ram, cart_address, len);
+    BiCartRomRd(ram, rom_address, len);
     BiBootRomOff();
     IO_WRITE(PI_BSD_DOM1_LAT_REG, lat);
     IO_WRITE(PI_BSD_DOM1_PWD_REG, pwd);
     return 0;
 }
 
-void BiSramRd(void *ram, unsigned long sram_address, unsigned long len)
+void BiCartRamRd(void *ram, unsigned long ram_address, unsigned long len)
 {
-    bi_game_cfg_set(SAVE_SRM128K);
-    sysPI_rd(ram, BI_ADDR_BRM|sram_address, len);
-    bi_game_cfg_set(SAVE_OFF);
+    bi_set_save_type(SAVE_SRM128K);
+    sysPI_rd(ram, BI_RAM_ADDR|ram_address, len);
+    bi_set_save_type(SAVE_OFF);
 }
 
 u32 bi_reg_rd(u16 reg) {
@@ -473,14 +474,14 @@ u8 bi_sd_cmd_rd() {
     return bi_reg_rd(REG_SD_CMD_RD);
 }
 
-u8 bi_get_cart_id() {
+u8 BiGetIOMVer() {
 
-    return bi_reg_rd(REG_EDID);
+    return bi_reg_rd(REG_IOM_VER);
 }
 
-u8 bios_80001100() {
+u8 BiGetMCNVer() {
 
-    return bi_reg_rd(0x8040);
+    return bi_reg_rd(REG_MCN_VER);
 }
 
 u16 BiTimerGet() {
@@ -635,7 +636,7 @@ void bi_init() {
     bi_sd_dat_rd();
 
     //turn off backup ram
-    bi_game_cfg_set(SAVE_OFF);
+    bi_set_save_type(SAVE_OFF);
 
     BiBootCfgGet(0xFFFF);
     BiBootCfgSet(BI_BCFG_CICLOCK);
@@ -653,7 +654,7 @@ u8 bi_usb_rd_end(void *dst) {
 
 u32 BiRTCInfo()
 {
-    SysPifmacro(pifCmdRTCInfo, pifRespRTCInfo);
+    sysExecPIF(pifCmdRTCInfo, pifRespRTCInfo);
     return pifRespRTCInfo[1] >> 32;
 }
 
@@ -680,7 +681,7 @@ u8 bios_800016E0(u8 *src)
     return BiI2CWr(0x100, buff, 16);
 }
 
-void BiPiFill(u8 c, unsigned long pi_address, unsigned long len)
+void BiCartFill(u8 c, unsigned long pi_address, unsigned long len)
 {
     u8 buff[2048];
     int n = 2048;
@@ -694,23 +695,23 @@ void BiPiFill(u8 c, unsigned long pi_address, unsigned long len)
     }
 }
 
-void BiCartRomFill(u8 c, unsigned long cart_address, unsigned long len)
+void BiCartRomFill(u8 c, unsigned long rom_address, unsigned long len)
 {
-    BiPiFill(c, BI_ADDR_ROM|cart_address, len);
+    BiCartFill(c, BI_ROM_ADDR|rom_address, len);
 }
 
-void BiSramFill(u8 c, unsigned long sram_address, unsigned long len)
+void BiCartRamFill(u8 c, unsigned long ram_address, unsigned long len)
 {
-    bi_game_cfg_set(SAVE_SRM128K);
-    BiPiFill(c, BI_ADDR_BRM|sram_address, len);
-    bi_game_cfg_set(SAVE_OFF);
+    bi_set_save_type(SAVE_SRM128K);
+    BiCartFill(c, BI_RAM_ADDR|ram_address, len);
+    bi_set_save_type(SAVE_OFF);
 }
 
 void BiRTCGet(u8 *dst)
 {
     u8 buff[8];
     pifCmdEepRead[0] = 0x02090702;
-    SysPifmacro(pifCmdEepRead, pifRespEepRead);
+    sysExecPIF(pifCmdEepRead, pifRespEepRead);
     memcopy(&pifRespEepRead[1], buff, 8);
     dst[0] = buff[0];
     dst[1] = buff[1];
@@ -804,7 +805,7 @@ u8 BiIOMWr(void *src, u32 len)
 }
 
 /* Program the ALTERA Cyclone IV */
-u8 BiFPGAWr(void *src, u32 len)
+u8 BiMCNWr(void *src, u32 len)
 {
     u8 resp = 0;
     u8 buff[256];
