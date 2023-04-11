@@ -67,17 +67,17 @@ void gSetY(u8 y) {
     gSetXY(g_last_x, y);
 }
 
-u8 gGetX(void) {
+u8 gGetX() {
 
     return g_last_x;
 }
 
-u8 gGetY(void) {
+u8 gGetY() {
 
     return g_last_y;
 }
 
-void gfx_80004D90(void) {
+void GfxResetXY() {
 
     gSetXY(G_BORDER_X, G_BORDER_Y);
 }
@@ -95,7 +95,7 @@ void gConsPrint(u8 *str) {
     gConsPrintLen(str, G_MAX_STR_LEN);
 }
 
-void gfx_80004E60(u8 y, u16 pal) {
+void GfxChangePal(u8 y, u16 pal) {
 
     u16 *ptr = &g_buff[y * G_SCREEN_W];
     u8 len = G_SCREEN_W;
@@ -106,19 +106,19 @@ void gfx_80004E60(u8 y, u16 pal) {
     }
 }
 
-void gfx_80004EB0(u16 chr, u8 x, u8 y, u8 len) {
+void GfxFillVLine(u16 chr, u8 x, u8 y, u8 height) {
 
     gSetXY(x, y);
     u16 ptr = g_cons_ptr;
     u16 val = chr + g_cur_pal;
-    while (len--)
+    while (height--)
     {
         g_buff[ptr] = val;
         ptr += G_SCREEN_W;
     }
 }
 
-void gfx_80004F58(u8 *a0, u16 len) {
+void GfxDumpHex(u8 *a0, u16 len) {
 
     for (u16 i = 0; i < len; i++) {
         if (!(i & 0xf)) gConsPrint((u8 *)"");
@@ -126,40 +126,40 @@ void gfx_80004F58(u8 *a0, u16 len) {
     }
 }
 
-void gfx_80004FF8(u16 chr, u8 x, u8 y, u8 width) {
+void GfxFillHLine(u16 chr, u8 x, u8 y, u8 width) {
 
     gSetXY(x, y);
     u16 val = chr + g_cur_pal;
     u16 len = width*2;
-    SysGfxFill(&g_buff[g_cons_ptr], val, len);
+    GfxFill(&g_buff[g_cons_ptr], val, len);
 }
 
-void gfx_80005060(u16 chr, u8 width, u8 height) {
+void GfxAppendRect(u16 chr, u8 width, u8 height) {
 
     u16 val = chr + g_cur_pal;
     u16 ptr = g_cons_ptr;
     u8 len = width*2;
     while (height--) {
-        SysGfxFill(&g_buff[ptr], val, len);
+        GfxFill(&g_buff[ptr], val, len);
         ptr += G_SCREEN_W;
     }
 }
 
-void gfx_80005100(u16 chr, u8 x, u8 y, u8 width, u8 height) {
+void GfxFillRect(u16 chr, u8 x, u8 y, u8 width, u8 height) {
 
     gSetXY(x, y);
-    gfx_80005060(chr, width, height);
+    GfxAppendRect(chr, width, height);
 }
 
 void gCleanScreen() {
 
     g_cur_pal = 0;
-    gfx_80004D90();
-    SysGfxFill(g_buff, 0, G_SCREEN_W * G_SCREEN_H * 2);
+    GfxResetXY();
+    GfxFill(g_buff, 0, G_SCREEN_W * G_SCREEN_H * 2);
     gSetPal(PAL_B1);
 }
 
-void gfx_800051C8(u8 *str, u8 len) {
+void GfxPrintCenterLen(u8 *str, u8 len) {
 
     u8 width = slen(str);
     if (width > len) width = len;
@@ -169,22 +169,22 @@ void gfx_800051C8(u8 *str, u8 len) {
     g_cons_ptr = ptr + G_SCREEN_W;
 }
 
-void gfx_80005288(u8 *str) {
+void GfxPrintCenter(u8 *str) {
 
-    gfx_800051C8(str, G_MAX_STR_LEN);
+    GfxPrintCenterLen(str, G_MAX_STR_LEN);
 }
 
-void gfx_80005290(int a0) {
+void GfxAppendDec(u32 val) {
 
     u8 buff[16];
     buff[0] = '\0';
-    sys_80005860(buff, a0);
+    FmtDecBuff(buff, val);
     gAppendString(buff);
 }
 
-void gfx_800052F8(u16 *buff) {
+void GfxInit(u16 *buff) {
 
     g_buff = buff;
     gCleanScreen();
-    sys_80005618(0);
+    FmtInit(0);
 }

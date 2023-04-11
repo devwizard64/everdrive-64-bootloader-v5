@@ -1,35 +1,3 @@
-void *malloc(unsigned long);
-void *memcpy(void *, const void *, unsigned long);
-void *memset(void *, int, unsigned long);
-
-/* dma.h */
-void dma_write(void * ram_address, unsigned long pi_address, unsigned long len);
-void dma_read(void * ram_address, unsigned long pi_address, unsigned long len);
-volatile int dma_busy();
-
-/* interrupt.h */
-void set_AI_interrupt( int active );
-void set_VI_interrupt( int active, unsigned long line );
-void set_PI_interrupt( int active );
-void set_DP_interrupt( int active );
-void enable_interrupts();
-void disable_interrupts();
-
-/* n64sys.h */
-#define UncachedAddr(_addr) ((void *)(((unsigned long)(_addr))|0x20000000))
-#define UncachedShortAddr(_addr) ((short *)(((unsigned long)(_addr))|0x20000000))
-#define UncachedUShortAddr(_addr) ((unsigned short *)(((unsigned long)(_addr))|0x20000000))
-#define UncachedLongAddr(_addr) ((long *)(((unsigned long)(_addr))|0x20000000))
-#define UncachedULongAddr(_addr) ((unsigned long *)(((unsigned long)(_addr))|0x20000000))
-#define CachedAddr(_addr) (((void *)(((unsigned long)(_addr))&~0x20000000))
-volatile unsigned long get_ticks_ms( void );
-void data_cache_hit_writeback(volatile void *, unsigned long);
-void data_cache_hit_writeback_invalidate(volatile void *, unsigned long);
-#define COUNTS_PER_SECOND (93750000/2)
-
-/* rdp.h */
-void rdp_init( void );
-
 /******************************************************************************/
 /* sys.h                                                                      */
 /******************************************************************************/
@@ -270,153 +238,56 @@ void boot_simulator(u8 cic);
 u8 usbListener();
 
 /******************************************************************************/
-/* bios.c                                                                     */
-/******************************************************************************/
-
-#define REG_BASE        0x1F800000
-#define REG_FPG_CFG     0x0000
-#define REG_USB_CFG     0x0004
-#define REG_TIMER       0x000C
-#define REG_BOOT_CFG    0x0010
-#define REG_EDID        0x0014
-#define REG_I2C_CMD     0x0018
-#define REG_I2C_DAT     0x001C
-
-#define REG_FPG_DAT     0x0200
-#define REG_USB_DAT     0x0400
-
-#define REG_SYS_CFG     0x8000
-#define REG_KEY         0x8004
-#define REG_DMA_STA     0x8008
-#define REG_DMA_ADDR    0x8008
-#define REG_DMA_LEN     0x800C
-#define REG_RTC_SET     0x8010
-#define REG_GAM_CFG     0x8018
-#define REG_IOM_CFG     0x801C
-#define REG_SDIO        0x8020
-#define REG_SDIO_ARD    0x8200
-#define REG_IOM_DAT     0x8400
-#define REG_DD_TBL      0x8800
-#define REG_SD_CMD_RD   (REG_SDIO + 0x00*4)
-#define REG_SD_CMD_WR   (REG_SDIO + 0x01*4)
-#define REG_SD_DAT_RD   (REG_SDIO + 0x02*4)
-#define REG_SD_DAT_WR   (REG_SDIO + 0x03*4)
-#define REG_SD_STATUS   (REG_SDIO + 0x04*4)
-
-#define DMA_STA_BUSY    0x0001
-#define DMA_STA_ERROR   0x0002
-#define DMA_STA_LOCK    0x0080
-
-#define SD_CFG_BITLEN   0x000F
-#define SD_CFG_SPD      0x0010
-#define SD_STA_BUSY     0x0080
-
-#define CFG_BROM_ON     0x0001
-#define CFG_REGS_OFF    0x0002
-#define CFG_SWAP_ON     0x0004
-
-#define FPG_CFG_NCFG    0x0001
-#define FPG_STA_CDON    0x0001
-#define FPG_STA_NSTAT   0x0002
-
-#define I2C_CMD_DAT     0x10
-#define I2C_CMD_STA     0x20
-#define I2C_CMD_END     0x30
-
-#define IOM_CFG_SS      0x0001
-#define IOM_CFG_RST     0x0002
-#define IOM_CFG_ACT     0x0080
-#define IOM_STA_CDN     0x0001
-
-#define USB_LE_CFG      0x8000
-#define USB_LE_CTR      0x4000
-
-#define USB_CFG_ACT     0x0200
-#define USB_CFG_RD      0x0400
-#define USB_CFG_WR      0x0000
-
-#define USB_STA_ACT     0x0200
-#define USB_STA_RXF     0x0400
-#define USB_STA_TXE     0x0800
-#define USB_STA_PWR     0x1000
-#define USB_STA_BSY     0x2000
-
-#define USB_CMD_RD_NOP  (USB_LE_CFG | USB_LE_CTR | USB_CFG_RD)
-#define USB_CMD_RD      (USB_LE_CFG | USB_LE_CTR | USB_CFG_RD | USB_CFG_ACT)
-#define USB_CMD_WR_NOP  (USB_LE_CFG | USB_LE_CTR | USB_CFG_WR)
-#define USB_CMD_WR      (USB_LE_CFG | USB_LE_CTR | USB_CFG_WR | USB_CFG_ACT)
-
-#define REG_LAT 0x04
-#define REG_PWD 0x04
-
-#define ROM_LAT 0x40
-#define ROM_PWD 0x12
-
-#define REG_ADDR(reg)   (KSEG1 | REG_BASE | (reg))
-
-u32 bi_reg_rd(u16 reg);
-void bi_reg_wr(u16 reg, u32 val);
-void bi_usb_init();
-u8 bi_usb_busy();
-
-/******************************************************************************/
-/* sys.c                                                                      */
-/******************************************************************************/
-
-#define SYS_MAX_PIXEL_W   320
-#define SYS_MAX_PIXEL_H   240
-
-extern vu32 *vregs;
-extern u16 *g_disp_ptr;
-extern u16 g_cur_pal;
-extern u16 g_cons_ptr;
-extern u8 g_last_x;
-extern u8 g_last_y;
-extern u16 *g_buff;
-
-/******************************************************************************/
 
 #define MEMORY_BARRIER() asm volatile ("" : : : "memory")
 
 /* bios.c */
-void bios_80000568(void);
+void bios_80000568();
 void BiCartRomWr(void *ram, unsigned long cart_address, unsigned long len);
-void BiBootCfgClr(u16 a0);
-void BiBootCfgSet(u16 a0);
-void BiLockRegs(void);
+void BiBootCfgClr(u16 cfg);
+void BiBootCfgSet(u16 cfg);
+void BiLockRegs();
 void BiCartRomRd(void *ram, unsigned long cart_address, unsigned long len);
 int BiBootRomRd(void *ram, unsigned long cart_address, unsigned long len);
-u16 BiBootCfgGet(u16 a0);
+u16 BiBootCfgGet(u16 cfg);
 void BiCartRomFill(u8 c, unsigned long cart_address, unsigned long len);
-u8 bios_80001BF0(void *, unsigned int);
+u8 BiFPGAWr(void *src, u32 len);
 
 /* main.c */
-void MainBootOS(void);
+void MainBootOS();
 
 /* fat.c */
-int fat_80003730(void);
+int fat_80003730();
 int fat_80003C00(int, int);
 u8 fat_80004820(u8 *, int);
 int fat_80004870(void *);
 
+/* gfx.c */
+void gSetY(u8 y);
+void GfxResetXY();
+void GfxFillRect(u16 chr, u8 x, u8 y, u8 width, u8 height);
+void GfxPrintCenter(u8 *str);
+void GfxAppendDec(u32 val);
+void GfxInit(u16 *buff);
+extern u16 *g_buff;
+
+/* fmt.c */
+void GfxFill(u16 *dst, u16 val, u32 len);
+void memcopy(const void *src, void *dst, u32 len);
+void memfill(void *dst, u8 val, u32 len);
+u8 streql(u8 *str1, u8 *str2, u8 len);
+u8 slen(u8 *str);
+void FmtInit(u8 *str);
+void FmtDecBuff(u8 *buff, u32 val);
+
 /* sys.c */
-void sys_80004D20(int);
-void sys_80004D90(void);
-void sys_80004E58(u8 *str);
-void sys_80005100(int, int, int, int, int);
-void sys_80005288(u8 *str);
-void sys_80005290(int);
-void sys_800052F8(u16 *buff);
-void memcopy(const void *src, void *dest, unsigned long n);
-void memfill(void *s, u8 c, unsigned long n);
 void SysPifmacro(u64 *cmd, u64 *resp);
 void sleep(u32 ms);
+u8 SysDecToBCD(u8 a0);
 void sdCrc16(void *src, u16 *crc_out);
+extern u64 pifCmdRTCInfo[];
+extern u64 pifCmdEepRead[];
 
 /* fpga_data.s */
 extern u8 fpga_data[];
-extern unsigned int fpga_data_len;
-
-/* sys.c */
-extern u64 pifCmdRTCInfo[];
-extern u64 pifCmdEepRead[];
+extern u32 fpga_data_len;

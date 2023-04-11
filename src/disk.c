@@ -60,7 +60,7 @@ u32 crc7(u8 *buff, u32 len) {
     return (crc & 0xfe);
 }
 
-u8 disk_80002D08(void)
+u8 disk_80002D08()
 {
     return 0xDF;
 }
@@ -222,7 +222,7 @@ u8 diskReadToRam(u32 sd_addr, void *dst, u16 slen) {
     return 0;
 }
 
-u8 DiskCheckInit(void)
+u8 DiskCheckInit()
 {
     u8 sp20[512];
     if (!BiBootCfgGet(BI_BCFG_SD_INIT)) return 1;

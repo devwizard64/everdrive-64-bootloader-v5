@@ -22,10 +22,10 @@ u16 gfx_buff[G_SCREEN_W * G_SCREEN_H];
 
 void MainShowError(u8);
 void printError(u8);
-u8 MainLoadOS(void);
+u8 MainLoadOS();
 void boot_simulator(u8 cic);
-u8 MainTestSdr(void);
-u8 MainTestFpg(void);
+u8 MainTestSdr();
+u8 MainTestFpg();
 
 int main(void)
 {
@@ -52,7 +52,7 @@ int main(void)
 void MainShowError(u8 err)
 {
     sysInit();
-    gfx_800052F8(gfx_buff);
+    GfxInit(gfx_buff);
     printError(err);
     gRepaint();
     for (;;) usbListener();
@@ -61,14 +61,14 @@ void MainShowError(u8 err)
 void printError(u8 err)
 {
     gSetPal(PAL_G1);
-    gfx_80005100(' ', 0, 0, G_SCREEN_W, G_SCREEN_H);
+    GfxFillRect(' ', 0, 0, G_SCREEN_W, G_SCREEN_H);
     gSetPal(PAL_B1);
-    gfx_80005100(' ', G_BORDER_X, G_BORDER_Y, G_SCREEN_W-G_BORDER_X*2, 4);
-    gfx_80005100('-', G_BORDER_X, G_BORDER_Y, G_SCREEN_W-G_BORDER_X*2, 1);
-    gfx_80005100('-', G_BORDER_X, G_BORDER_Y+3, G_SCREEN_W-G_BORDER_X*2, 1);
+    GfxFillRect(' ', G_BORDER_X, G_BORDER_Y, G_SCREEN_W-G_BORDER_X*2, 4);
+    GfxFillRect('-', G_BORDER_X, G_BORDER_Y, G_SCREEN_W-G_BORDER_X*2, 1);
+    GfxFillRect('-', G_BORDER_X, G_BORDER_Y+3, G_SCREEN_W-G_BORDER_X*2, 1);
     gSetXY(G_BORDER_X, G_BORDER_Y+1);
     gConsPrint((u8 *)" EverDrive-64 bootloader v");
-    gfx_80005290(5);
+    GfxAppendDec(5);
     gAppendString((u8 *)".");
     gAppendHex8(0);
     gConsPrint((u8 *)" ERROR:");
@@ -85,20 +85,20 @@ void printError(u8 err)
     gSetXY(G_SCREEN_W-G_BORDER_X-7, G_SCREEN_H-G_BORDER_Y-1);
     gConsPrint((u8 *)"SN:");
     gAppendHex16(mainSerialNo);
-    gfx_80004D90();
+    GfxResetXY();
     gSetY(G_SCREEN_H/2);
     if (err >= 0xC0 && err < 0xCB)
     {
-        gfx_80005288((u8 *)"SD card not found");
+        GfxPrintCenter((u8 *)"SD card not found");
     }
     else if (err >= 0xD2 && err < 0xD9)
     {
-        gfx_80005288((u8 *)"DISK IO error");
+        GfxPrintCenter((u8 *)"DISK IO error");
     }
     else if (err == 0xF0 || err == 0xF7 || err == 0xF5)
     {
         gSetY(G_SCREEN_H/2 - 5);
-        gfx_80005288((u8 *)"File not found: SD:/ED64/OS64.V64");
+        GfxPrintCenter((u8 *)"File not found: SD:/ED64/OS64.V64");
         gConsPrint((u8 *)"");
         gConsPrint((u8 *)"");
         gConsPrint((u8 *)"");
@@ -115,29 +115,29 @@ void printError(u8 err)
     else if (err == 0xF8)
     {
         gSetY(G_SCREEN_H/2 - 1);
-        gfx_80005288((u8 *)"Unknown file system");
+        GfxPrintCenter((u8 *)"Unknown file system");
         gConsPrint((u8 *)"");
-        gfx_80005288((u8 *)"Please use FAT32");
+        GfxPrintCenter((u8 *)"Please use FAT32");
     }
     else if (err >= 0xF1 && err < 0xFC)
     {
-        gfx_80005288((u8 *)"FAT error");
+        GfxPrintCenter((u8 *)"FAT error");
     }
     else if (err == 0x55)
     {
-        gfx_80005288((u8 *)"Hardware error");
+        GfxPrintCenter((u8 *)"Hardware error");
     }
     else if (err == 0xB3 || err == 0xB4)
     {
-        gfx_80005288((u8 *)"FPGA configuration error");
+        GfxPrintCenter((u8 *)"FPGA configuration error");
     }
     else
     {
-        gfx_80005288((u8 *)"Unexpected error");
+        GfxPrintCenter((u8 *)"Unexpected error");
     }
 }
 
-u8 MainLoadOS(void)
+u8 MainLoadOS()
 {
     u8 resp;
     u8 sp28[0x1400];
@@ -167,7 +167,7 @@ u8 MainLoadOS(void)
     return 0x13;
 }
 
-void MainBootOS(void)
+void MainBootOS()
 {
     diskCloseRW();
     BiLockRegs();
@@ -305,7 +305,7 @@ void boot_simulator(u8 cic) {
 }
 
 /* Test SDRAM */
-u8 MainTestSdr(void)
+u8 MainTestSdr()
 {
     unsigned int i;
     u16 sp28[0x10000];
@@ -323,7 +323,7 @@ u8 MainTestSdr(void)
 }
 
 /* Test FPGA */
-u8 MainTestFpg(void)
+u8 MainTestFpg()
 {
     u8 resp = 0;
     BiBootCfgSet(0x10);

@@ -20,6 +20,7 @@ SECTIONS
         build/src/disk.o(.text);
         build/src/fat.o(.text);
         build/src/gfx.o(.text);
+        build/src/str.o(.text);
         build/src/sys.o(.text);
         build/src/font.o(.text);
         build/src/fpga_data.o(.text);
@@ -47,6 +48,7 @@ SECTIONS
 
         build/src/fat.o(.rodata.str1.8);
         build/src/gfx.o(.rodata.str1.8);
+        build/src/str.o(.rodata.str1.8);
         build/src/sys.o(.rodata.str1.8);
         build/src/libdragon/exception.o(.rodata.str1.8);
         tools/mips64/mips64-elf/lib/libc.a:lib_a-impure.o(.rodata.str1.8);
@@ -63,7 +65,6 @@ SECTIONS
         . = ALIGN(16);
         __data_start = .;
 
-        build/src/usb.o(.data);
         build/src/sys.o(.data);
         build/src/libdragon/n64sys.o(.data);
         build/src/libdragon/interrupt.o(.data);
@@ -89,6 +90,7 @@ SECTIONS
         build/src/disk.o(.scommon);
         build/src/fat.o(.scommon);
         build/src/gfx.o(.scommon);
+        build/src/str.o(.scommon);
         build/src/sys.o(.scommon);
         build/src/libdragon/display.o(.scommon);
         tools/mips64/mips64-elf/lib/libc.a:lib_a-reent.o(.scommon);

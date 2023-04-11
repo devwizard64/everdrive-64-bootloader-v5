@@ -17,6 +17,7 @@ FIRM_OBJ := \
 	build/src/disk.o \
 	build/src/fat.o \
 	build/src/gfx.o \
+	build/src/str.o \
 	build/src/sys.o \
 	build/src/font.o \
 	build/src/fpga_data.o \

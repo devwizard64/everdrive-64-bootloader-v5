@@ -246,11 +246,11 @@ u8 usbListener();
 #define MEMORY_BARRIER() asm volatile ("" : : : "memory")
 
 /* bios.c */
-void bios_80000568(void);
+void bios_80000568();
 void BiCartRomWr(void *ram, unsigned long cart_address, unsigned long len);
 void BiBootCfgClr(u16 cfg);
 void BiBootCfgSet(u16 cfg);
-void BiLockRegs(void);
+void BiLockRegs();
 void BiCartRomRd(void *ram, unsigned long cart_address, unsigned long len);
 int BiBootRomRd(void *ram, unsigned long cart_address, unsigned long len);
 u16 BiBootCfgGet(u16 cfg);
@@ -258,37 +258,40 @@ void BiCartRomFill(u8 c, unsigned long cart_address, unsigned long len);
 u8 BiFPGAWr(void *src, u32 len);
 
 /* main.c */
-void MainBootOS(void);
+void MainBootOS();
 
 /* fat.c */
-int fat_80003730(void);
+int fat_80003730();
 int fat_80003C00(int, int);
 u8 fat_80004820(u8 *, int);
 int fat_80004870(void *);
 
 /* gfx.c */
 void gSetY(u8 y);
-void gfx_80004D90(void);
-void gfx_80005100(u16 chr, u8 x, u8 y, u8 width, u8 height);
-void gfx_80005288(u8 *str);
-void gfx_80005290(int);
-void gfx_800052F8(u16 *buff);
+void GfxResetXY();
+void GfxFillRect(u16 chr, u8 x, u8 y, u8 width, u8 height);
+void GfxPrintCenter(u8 *str);
+void GfxAppendDec(u32 val);
+void GfxInit(u16 *buff);
+extern u16 *g_buff;
 
-/* sys.c */
-void SysGfxFill(u16 *dst, u16 val, u32 len);
+/* fmt.c */
+void GfxFill(u16 *dst, u16 val, u32 len);
 void memcopy(const void *src, void *dst, u32 len);
 void memfill(void *dst, u8 val, u32 len);
+u8 streql(u8 *str1, u8 *str2, u8 len);
 u8 slen(u8 *str);
-void sys_80005618(int);
-void sys_80005860(u8 *, int);
+void FmtInit(u8 *str);
+void FmtDecBuff(u8 *buff, u32 val);
+
+/* sys.c */
 void SysPifmacro(u64 *cmd, u64 *resp);
 void sleep(u32 ms);
+u8 SysDecToBCD(u8 a0);
 void sdCrc16(void *src, u16 *crc_out);
+extern u64 pifCmdRTCInfo[];
+extern u64 pifCmdEepRead[];
 
 /* fpga_data.s */
 extern u8 fpga_data[];
 extern u32 fpga_data_len;
-
-/* sys.c */
-extern u64 pifCmdRTCInfo[];
-extern u64 pifCmdEepRead[];

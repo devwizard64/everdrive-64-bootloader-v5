@@ -122,7 +122,7 @@ void bios_80000588(void)
 {
 }
 
-void BiDDTblWr(void)
+void BiDDTblWr()
 {
     u8 buff[BI_DD_TBL_SIZE];
     sysPI_wr(buff, REG_ADDR(REG_DD_TBL), BI_DD_TBL_SIZE);
@@ -192,19 +192,19 @@ void bi_sd_speed(u8 speed) {
     bi_reg_wr(REG_SD_STATUS, bi_sd_cfg);
 }
 
-void BiBootRomOff(void)
+void BiBootRomOff()
 {
     biSysCfg &= ~CFG_BROM_ON;
     bi_reg_wr(REG_SYS_CFG, biSysCfg);
 }
 
-void BiBootRomOn(void)
+void BiBootRomOn()
 {
     biSysCfg |= CFG_BROM_ON;
     bi_reg_wr(REG_SYS_CFG, biSysCfg);
 }
 
-void BiLockRegs(void)
+void BiLockRegs()
 {
     bi_reg_wr(REG_KEY, 0);
 }
@@ -225,13 +225,13 @@ void BiTimerSet(u16 timer)
     bi_reg_wr(REG_TIMER, timer);
 }
 
-u32 BiUsbWrNop(void)
+u32 BiUsbWrNop()
 {
     bi_reg_wr(REG_USB_CFG, USB_CMD_WR_NOP);
     return REG_ADDR(REG_USB_DAT);
 }
 
-u32 BiUsbRdNop(void)
+u32 BiUsbRdNop()
 {
     bi_reg_wr(REG_USB_CFG, USB_CMD_RD_NOP);
     return REG_ADDR(REG_USB_DAT);
@@ -313,7 +313,7 @@ void BiI2CDatRd(void *dst, u16 len)
     }
 }
 
-u8 BiI2CStatus(void)
+u8 BiI2CStatus()
 {
     return bi_reg_rd(REG_I2C_CMD) & 1;
 }
@@ -332,26 +332,26 @@ u8 BiI2CDatStatus(u8 dat)
     return bi_reg_rd(REG_I2C_CMD) & 1;
 }
 
-void BiI2CSet11(void)
+void BiI2CSet11()
 {
     u32 v0 = bi_reg_rd(REG_I2C_CMD) & 0xFF;
     bi_reg_wr(REG_I2C_CMD, v0 | 0x11);
 }
 
-void BiI2CSet10(void)
+void BiI2CSet10()
 {
     u32 v0 = bi_reg_rd(REG_I2C_CMD) & 0xFF;
     bi_reg_wr(REG_I2C_CMD, v0 | 0x10);
 }
 
-void BiI2CEnd(void)
+void BiI2CEnd()
 {
     bi_reg_wr(REG_I2C_CMD, I2C_CMD_END);
     bi_reg_wr(REG_I2C_DAT, 0xFF);
     while (bi_reg_rd(REG_I2C_CMD) & 0x80);
 }
 
-void BiI2CStart(void)
+void BiI2CStart()
 {
     u32 v0 = bi_reg_rd(REG_I2C_CMD) & 0xFF;
     bi_reg_wr(REG_I2C_CMD, I2C_CMD_STA);
@@ -651,7 +651,7 @@ u8 bi_usb_rd_end(void *dst) {
     return 0;
 }
 
-u32 BiRTCInfo(void)
+u32 BiRTCInfo()
 {
     SysPifmacro(pifCmdRTCInfo, pifRespRTCInfo);
     return pifRespRTCInfo[1] >> 32;
