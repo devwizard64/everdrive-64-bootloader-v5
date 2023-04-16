@@ -358,7 +358,7 @@ void BiI2CStart()
     bi_reg_wr(REG_I2C_CMD, v0 | 0x11);
 }
 
-u8 BiI2CWr(u16 addr, void *src, u16 len)
+u8 __BiI2CWr(u16 addr, void *src, u16 len)
 {
     u8 cmd = addr < 0x100 ? 0xA2 : 0xD0;
     u8 *ptr = src;
@@ -386,12 +386,12 @@ u8 BiI2CWr(u16 addr, void *src, u16 len)
     return 0;
 }
 
-u8 BiI2CWr2(u8 *src, u16 addr, u16 len)
+u8 BiI2CWr(u8 *src, u16 addr, u16 len)
 {
-    return BiI2CWr(addr, src, len);
+    return __BiI2CWr(addr, src, len);
 }
 
-u8 BiI2CRd(u16 addr, u8 *dst, u16 len)
+u8 __BiI2CRd(u16 addr, u8 *dst, u16 len)
 {
     u8 cmd = addr < 0x100 ? 0xA2 : 0xD0;
     BiI2CStart();
@@ -407,10 +407,10 @@ u8 BiI2CRd(u16 addr, u8 *dst, u16 len)
     return 0;
 }
 
-u8 bios_80000F00(u8 *dst)
+u8 BiI2C100Rd(u8 *dst)
 {
     u8 buff[16];
-    u8 resp = BiI2CRd(0x100, buff, 16);
+    u8 resp = BiI2CRd(buff, 0x100, 16);
     if (resp) return resp;
     dst[0] = buff[0];
     dst[1] = buff[1];
@@ -423,9 +423,9 @@ u8 bios_80000F00(u8 *dst)
     return resp;
 }
 
-u8 BiI2CRd2(u8 *dst, u16 addr, u16 len)
+u8 BiI2CRd(u8 *dst, u16 addr, u16 len)
 {
-    return BiI2CRd(addr, dst, len);
+    return __BiI2CRd(addr, dst, len);
 }
 
 u8 bi_sd_to_rom(u32 dst, u16 slen) {
@@ -677,7 +677,7 @@ void BiRTCSet(u8 *src, u8 flag)
     sysPI_wr(buff, REG_ADDR(REG_RTC_SET), 8);
 }
 
-u8 bios_800016E0(u8 *src)
+u8 BiI2C100Wr(u8 *src)
 {
     u8 buff[16];
     memset(buff, 0, 16);
@@ -688,7 +688,7 @@ u8 bios_800016E0(u8 *src)
     buff[4] = src[3];
     buff[5] = src[5] & 0x1F;
     buff[6] = src[6];
-    return BiI2CWr(0x100, buff, 16);
+    return BiI2CWr(buff, 0x100, 16);
 }
 
 void BiCartFill(u8 c, unsigned long pi_address, unsigned long len)

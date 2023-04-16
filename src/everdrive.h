@@ -250,6 +250,8 @@ void BiLockRegs();
 void BiCartRomRd(void *ram, unsigned long rom_address, unsigned long len);
 int BiBootRomRd(void *ram, unsigned long rom_address, unsigned long len);
 u16 BiBootCfgGet(u16 cfg);
+u8 BiI2CWr(u8 *src, u16 addr, u16 len);
+u8 BiI2CRd(u8 *dst, u16 addr, u16 len);
 void BiCartRomFill(u8 c, unsigned long rom_address, unsigned long len);
 u8 BiMCNWr(void *src, u32 len);
 
