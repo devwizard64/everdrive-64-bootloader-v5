@@ -1,4 +1,4 @@
-#include "firmware.h"
+#include "everdrive.h"
 
 typedef struct PI_regs_s {
     /** @brief Uncached address in RAM where data should be found */
@@ -63,22 +63,6 @@ void simulate_pif_boot();
 void sysSI_dmaBusy(void);
 void sysExecPIF(void *inblock, void *outblock);
 void sysBlank();
-
-u64 pifCmdRTCInfo[] =
-{
-    0x00000000FF010306, 0xFFFFFFFFFE000000,
-    0x0000000000000000, 0x0000000000000000,
-    0x0000000000000000, 0x0000000000000000,
-    0x0000000000000000, 0x0000000000000001,
-};
-
-u64 pifCmdEepRead[] =
-{
-    0x0000000002080400, 0xFFFFFFFFFFFFFFFF,
-    0xFFFE000000000000, 0x0000000000000000,
-    0x0000000000000000, 0x0000000000000000,
-    0x0000000000000000, 0x0000000000000001,
-};
 
 BootStrap *sys_boot_strap = (BootStrap *) 0x80000300;
 
@@ -181,27 +165,27 @@ void sysExecPIF(void *inblock, void *outblock)
 {
     volatile struct SI_regs_s * const SI_regs = (struct SI_regs_s *) 0xa4800000;
     void * const PIF_RAM = (void *) 0x1fc007c0;
-    u64 sp20[8];
-    u64 sp60[8];
-    data_cache_hit_writeback_invalidate(sp20, 64);
-    memcopy(inblock, UncachedAddr(sp20), 64);
+    volatile uint64_t inblock_temp[8];
+    volatile uint64_t outblock_temp[8];
+    data_cache_hit_writeback_invalidate(inblock_temp, 64);
+    memcopy(inblock, UncachedAddr(inblock_temp), 64);
     disable_interrupts();
     sysSI_dmaBusy();
     MEMORY_BARRIER();
-    SI_regs->DRAM_addr = sp20;
+    SI_regs->DRAM_addr = inblock_temp;
     MEMORY_BARRIER();
     SI_regs->PIF_addr_write = PIF_RAM;
     MEMORY_BARRIER();
     sysSI_dmaBusy();
-    data_cache_hit_writeback_invalidate(sp60, 64);
+    data_cache_hit_writeback_invalidate(outblock_temp, 64);
     MEMORY_BARRIER();
-    SI_regs->DRAM_addr = sp60;
+    SI_regs->DRAM_addr = outblock_temp;
     MEMORY_BARRIER();
     SI_regs->PIF_addr_read = PIF_RAM;
     MEMORY_BARRIER();
     sysSI_dmaBusy();
     enable_interrupts();
-    memcopy(UncachedAddr(sp60), outblock, 64);
+    memcopy(UncachedAddr(outblock_temp), outblock, 64);
 }
 
 void sysDisplayInit() {

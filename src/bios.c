@@ -1,4 +1,4 @@
-#include "firmware.h"
+#include "everdrive.h"
 
 #define REG_BASE        0x1F800000
 #define REG_FPG_CFG     0x0000
@@ -91,9 +91,6 @@ u16 biBootCfg;
 u16 biSysCfg;
 u16 bi_sd_cfg;
 u16 bi_old_sd_mode;
-
-u64 pifRespRTCInfo[8] = {0};
-u64 pifRespEepRead[8] = {0};
 
 int bios_80000560(void)
 {
@@ -652,10 +649,23 @@ u8 bi_usb_rd_end(void *dst) {
     return 0;
 }
 
+static unsigned long long SI_eeprom_status_block[8] =
+{
+    0x00000000ff010306,
+    0xfffffffffe000000,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1
+};
+static unsigned long long SI_eeprom_status_output[8];
+
 u32 BiRTCInfo()
 {
-    sysExecPIF(pifCmdRTCInfo, pifRespRTCInfo);
-    return pifRespRTCInfo[1] >> 32;
+    sysExecPIF(SI_eeprom_status_block, SI_eeprom_status_output);
+    return SI_eeprom_status_output[1] >> 32;
 }
 
 void BiRTCSet(u8 *src, u8 flag)
@@ -707,12 +717,25 @@ void BiCartRamFill(u8 c, unsigned long ram_address, unsigned long len)
     bi_set_save_type(SAVE_OFF);
 }
 
+static unsigned long long SI_eeprom_read_block[8] =
+{
+    0x0000000002080400,
+    0xffffffffffffffff,
+    0xfffe000000000000,
+    0,
+    0,
+    0,
+    0,
+    1
+};
+static unsigned long long SI_eeprom_read_output[8];
+
 void BiRTCGet(u8 *dst)
 {
     u8 buff[8];
-    pifCmdEepRead[0] = 0x02090702;
-    sysExecPIF(pifCmdEepRead, pifRespEepRead);
-    memcopy(&pifRespEepRead[1], buff, 8);
+    SI_eeprom_read_block[0] = 0x0000000002090700 | 2;
+    sysExecPIF(SI_eeprom_read_block, SI_eeprom_read_output);
+    memcopy(&SI_eeprom_read_output[1], buff, 8);
     dst[0] = buff[0];
     dst[1] = buff[1];
     dst[2] = buff[2] & 0x7F;

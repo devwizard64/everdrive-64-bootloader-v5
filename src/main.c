@@ -1,4 +1,7 @@
-#include "firmware.h"
+#include "everdrive.h"
+
+extern u8 mcn_data[];
+extern u32 mcn_data_len;
 
 #if 0
 u8 mainErrFpg;
@@ -70,7 +73,7 @@ void printError(u8 err)
     gConsPrint((u8 *)" EverDrive-64 bootloader v");
     GfxAppendDec(5);
     gAppendString((u8 *)".");
-    gAppendHex8(0);
+    gAppendHex8(0x00);
     gConsPrint((u8 *)" ERROR:");
     gAppendHex8(err);
     if (mainErrFpg || mainErrSdr)
@@ -87,11 +90,11 @@ void printError(u8 err)
     gAppendHex16(mainSerialNo);
     GfxResetXY();
     gSetY(G_SCREEN_H/2);
-    if (err >= 0xC0 && err < 0xCB)
+    if (err >= 0xC0 && err <= 0xCA)
     {
         GfxPrintCenter((u8 *)"SD card not found");
     }
-    else if (err >= 0xD2 && err < 0xD9)
+    else if (err >= 0xD2 && err <= 0xD8)
     {
         GfxPrintCenter((u8 *)"DISK IO error");
     }
@@ -119,7 +122,7 @@ void printError(u8 err)
         gConsPrint((u8 *)"");
         GfxPrintCenter((u8 *)"Please use FAT32");
     }
-    else if (err >= 0xF1 && err < 0xFC)
+    else if (err >= 0xF1 && err <= 0xFB)
     {
         GfxPrintCenter((u8 *)"FAT error");
     }
@@ -127,7 +130,7 @@ void printError(u8 err)
     {
         GfxPrintCenter((u8 *)"Hardware error");
     }
-    else if (err == 0xB3 || err == 0xB4)
+    else if (err == BI_ERR_MCN_CFG || err == BI_ERR_IOM_CFG)
     {
         GfxPrintCenter((u8 *)"FPGA configuration error");
     }
@@ -141,13 +144,13 @@ u8 MainLoadOS()
 {
     u8 resp;
     u8 sp28[0x1400];
-    u8 sp1428[0x40];
+    u8 buff[0x40];
     bi_init();
-    BiBootRomRd(sp1428, 0x3FFC0, 0x40);
-    mainSerialNo = (s16)sp1428[10] << 8 | sp1428[11];
+    BiBootRomRd(buff, 0x3FFC0, 0x40);
+    mainSerialNo = (s16)buff[10] << 8 | buff[11];
     if (!BiBootCfgGet(BI_BCFG_BOOTMOD))
     {
-        resp = BiMCNWr(fpga_data, fpga_data_len);
+        resp = BiMCNWr(mcn_data, mcn_data_len);
         if (resp) return resp;
         bi_init();
     }
@@ -156,18 +159,18 @@ u8 MainLoadOS()
     if (mainErrSdr || mainErrFpg) return 0x55;
     resp = diskInit();
     if (resp) return resp;
-    resp = fat_80004870(sp28);
+    resp = fatInit(sp28);
     if (resp) return resp;
-    resp = fat_80004820((u8 *)"ED64/OS64.V64", 0);
+    resp = fatOpenFileByeName((u8 *)"ED64/OS64.V64", 0);
     if (resp) return resp;
     BiCartRomFill(0, 0x1000, 0x100000);
     resp = fat_80003C00(0, fat_80003730());
     if (resp) return resp;
-    MainBootOS();
+    simulate_pif_boot();
     return 0x13;
 }
 
-void MainBootOS()
+void simulate_pif_boot()
 {
     diskCloseRW();
     BiLockRegs();
@@ -307,17 +310,17 @@ void boot_simulator(u8 cic) {
 /* Test SDRAM */
 u8 MainTestSdr()
 {
-    unsigned int i;
-    u16 sp28[0x10000];
+    u32 i;
+    u16 buff[0x10000];
     for (i = 0; i < 0x10000; i++)
     {
-        sp28[i] = i;
+        buff[i] = i;
     }
-    BiCartRomWr(sp28, 0, 0x20000);
-    BiCartRomRd(sp28, 0, 0x20000);
+    BiCartRomWr(buff, 0, 0x20000);
+    BiCartRomRd(buff, 0, 0x20000);
     for (i = 0; i < 0x10000; i++)
     {
-        if (sp28[i] != i) return 1;
+        if (buff[i] != i) return 1;
     }
     return 0;
 }

@@ -285,9 +285,3 @@ void SysPifmacro(u64 *cmd, u64 *resp);
 void sleep(u32 ms);
 u8 SysDecToBCD(u8 a0);
 void sdCrc16(void *src, u16 *crc_out);
-extern u64 pifCmdRTCInfo[];
-extern u64 pifCmdEepRead[];
-
-/* fpga_data.s */
-extern u8 fpga_data[];
-extern u32 fpga_data_len;

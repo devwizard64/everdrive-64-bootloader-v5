@@ -155,6 +155,8 @@ void gAppendHex32(u32 val);
 #define BI_ERR_I2C_TOUT         0xB1
 #define BI_ERR_USB_TOUT         0xB2
 #define BI_ERR_FPG_CFG          0xB3
+#define BI_ERR_MCN_CFG          0xB3
+#define BI_ERR_IOM_CFG          0xB4
 
 #define BI_DISK_SPD_LO  0
 #define BI_DISK_SPD_HI  1
@@ -252,13 +254,13 @@ void BiCartRomFill(u8 c, unsigned long rom_address, unsigned long len);
 u8 BiMCNWr(void *src, u32 len);
 
 /* main.c */
-void MainBootOS();
+void simulate_pif_boot();
 
 /* fat.c */
-int fat_80003730();
-int fat_80003C00(int, int);
-u8 fat_80004820(u8 *, int);
-int fat_80004870(void *);
+u32 fat_80003730();
+u8 fat_80003C00(int, u32);
+u8 fatOpenFileByeName(u8 *name, u32 wr_sectors);
+u8 fatInit(void *);
 
 /* gfx.c */
 void gSetY(u8 y);
@@ -281,9 +283,3 @@ void sysExecPIF(void *inblock, void *outblock);
 void sleep(u32 ms);
 u8 SysDecToBCD(u8 a0);
 void sdCrc16(void *src, u16 *crc_out);
-extern u64 pifCmdRTCInfo[];
-extern u64 pifCmdEepRead[];
-
-/* fpga_data.s */
-extern u8 fpga_data[];
-extern u32 fpga_data_len;

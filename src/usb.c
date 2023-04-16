@@ -1,4 +1,4 @@
-#include "firmware.h"
+#include "everdrive.h"
 
 void UsbCmdc(u32 *buff)
 {
@@ -122,7 +122,7 @@ u8 usbListener()
     else if (cmd == 's')
     {
         BiBootCfgClr(BI_BCFG_BOOTMOD);
-        MainBootOS();
+        simulate_pif_boot();
     }
     else if (cmd == 'c')
     {

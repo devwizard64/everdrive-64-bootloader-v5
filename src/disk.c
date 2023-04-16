@@ -1,4 +1,4 @@
-#include "firmware.h"
+#include "everdrive.h"
 
 #define CMD0  0x40    // software reset
 #define CMD1  0x41    // brings card out of idle state

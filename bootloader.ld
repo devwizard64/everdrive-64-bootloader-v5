@@ -22,8 +22,7 @@ SECTIONS
         build/src/gfx.o(.text);
         build/src/str.o(.text);
         build/src/sys.o(.text);
-        build/src/font.o(.text);
-        build/src/fpga_data.o(.text);
+        build/src/incs.o(.text);
         build/src/libdragon/n64sys.o(.text);
         build/src/libdragon/interrupt.o(.text);
         build/src/libdragon/rdp.o(.text);
@@ -55,7 +54,7 @@ SECTIONS
 
         build/src/libdragon/rdp.o(.rodata.cst8);
 
-        build/src/80028848.o(.rodata);
+        build/src/eh_frame.o(.rodata);
 
         __text_end = .;
     }
@@ -65,6 +64,7 @@ SECTIONS
         . = ALIGN(16);
         __data_start = .;
 
+        build/src/bios.o(.data);
         build/src/sys.o(.data);
         build/src/libdragon/n64sys.o(.data);
         build/src/libdragon/interrupt.o(.data);
@@ -76,7 +76,6 @@ SECTIONS
         . = ALIGN(16);
         _gp = .;
 
-        tools/mips64/mips64-elf/lib/libc.a:lib_a-mallocr.o(.sdata);
         tools/mips64/mips64-elf/lib/libc.a:lib_a-impure.o(.sdata);
 
         __data_end = .;

@@ -1,4 +1,4 @@
-#include "firmware.h"
+#include "everdrive.h"
 
 u16 *gfx_buff;
 u16 *g_disp_ptr;
