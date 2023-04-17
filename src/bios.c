@@ -302,7 +302,7 @@ void BiI2CDatWr(u8 *src, u8 len)
 
 void BiI2CDatRd(void *dst, u16 len)
 {
-    char *ptr = dst;
+    u8 *ptr = dst;
     while (len--)
     {
         bi_reg_wr(REG_I2C_DAT, 0xFF);
@@ -316,30 +316,30 @@ u8 BiI2CStatus()
     return bi_reg_rd(REG_I2C_CMD) & 1;
 }
 
-u8 BiI2CDatIo(u8 dat)
+u8 BiI2CIo(u8 dat)
 {
     bi_reg_wr(REG_I2C_DAT, dat);
     while (bi_reg_rd(REG_I2C_CMD) & 0x80);
     return bi_reg_rd(REG_I2C_DAT);
 }
 
-u8 BiI2CDatStatus(u8 dat)
+u8 BiI2CDat(u8 dat)
 {
     bi_reg_wr(REG_I2C_DAT, dat);
     while (bi_reg_rd(REG_I2C_CMD) & 0x80);
     return bi_reg_rd(REG_I2C_CMD) & 1;
 }
 
-void BiI2CSet11()
+void BiI2CSetWr()
 {
-    u32 v0 = bi_reg_rd(REG_I2C_CMD) & 0xFF;
-    bi_reg_wr(REG_I2C_CMD, v0 | 0x11);
+    u32 cmd = bi_reg_rd(REG_I2C_CMD) & 0xFF;
+    bi_reg_wr(REG_I2C_CMD, cmd | I2C_CMD_DAT | 1);
 }
 
-void BiI2CSet10()
+void BiI2CSetRd()
 {
-    u32 v0 = bi_reg_rd(REG_I2C_CMD) & 0xFF;
-    bi_reg_wr(REG_I2C_CMD, v0 | 0x10);
+    u32 cmd = bi_reg_rd(REG_I2C_CMD) & 0xFF;
+    bi_reg_wr(REG_I2C_CMD, cmd | I2C_CMD_DAT | 0);
 }
 
 void BiI2CEnd()
@@ -351,16 +351,16 @@ void BiI2CEnd()
 
 void BiI2CStart()
 {
-    u32 v0 = bi_reg_rd(REG_I2C_CMD) & 0xFF;
+    u32 cmd = bi_reg_rd(REG_I2C_CMD) & 0xFF;
     bi_reg_wr(REG_I2C_CMD, I2C_CMD_STA);
     bi_reg_wr(REG_I2C_DAT, 0xFF);
     while (bi_reg_rd(REG_I2C_CMD) & 0x80);
-    bi_reg_wr(REG_I2C_CMD, v0 | 0x11);
+    bi_reg_wr(REG_I2C_CMD, cmd | I2C_CMD_DAT | 1);
 }
 
 u8 __BiI2CWr(u16 addr, void *src, u16 len)
 {
-    u8 cmd = addr < 0x100 ? 0xA2 : 0xD0;
+    u8 dev = addr < 0x100 ? 0xA2 : 0xD0;
     u8 *ptr = src;
     for (;;)
     {
@@ -368,12 +368,12 @@ u8 __BiI2CWr(u16 addr, void *src, u16 len)
         for (tout = 0xFF; tout > 0; tout--)
         {
             BiI2CStart();
-            if (!BiI2CDatStatus(cmd)) break;
+            if (!BiI2CDat(dev)) break;
             BiI2CEnd();
         }
         if (tout == 0) return BI_ERR_I2C_TOUT;
         if (len == 0) break;
-        if (BiI2CDatStatus(addr & 0xFF)) return BI_ERR_I2C_CMD;
+        if (BiI2CDat(addr & 0xFF)) return BI_ERR_I2C_CMD;
         u8 n = 8;
         if (n > len) n = len;
         BiI2CDatWr(ptr, n);
@@ -386,28 +386,28 @@ u8 __BiI2CWr(u16 addr, void *src, u16 len)
     return 0;
 }
 
-u8 BiI2CWr(u8 *src, u16 addr, u16 len)
+u8 BiI2CWr(void *src, u16 addr, u16 len)
 {
     return __BiI2CWr(addr, src, len);
 }
 
-u8 __BiI2CRd(u16 addr, u8 *dst, u16 len)
+u8 __BiI2CRd(u16 addr, void *dst, u16 len)
 {
-    u8 cmd = addr < 0x100 ? 0xA2 : 0xD0;
+    u8 dev = addr < 0x100 ? 0xA2 : 0xD0;
     BiI2CStart();
-    if (BiI2CDatStatus(cmd)) return BI_ERR_I2C_CMD;
-    if (BiI2CDatStatus(addr)) return BI_ERR_I2C_CMD;
+    if (BiI2CDat(dev)) return BI_ERR_I2C_CMD;
+    if (BiI2CDat(addr & 0xFF)) return BI_ERR_I2C_CMD;
     BiI2CStart();
-    if (BiI2CDatStatus(cmd | 1)) return BI_ERR_I2C_CMD;
-    BiI2CSet10();
+    if (BiI2CDat(dev | 1)) return BI_ERR_I2C_CMD;
+    BiI2CSetRd();
     BiI2CDatRd(dst, len);
-    BiI2CSet11();
-    BiI2CDatStatus(0xFF);
+    BiI2CSetWr();
+    BiI2CDat(0xFF);
     BiI2CEnd();
     return 0;
 }
 
-u8 BiI2C100Rd(u8 *dst)
+u8 BiRTCRd(u8 *dst)
 {
     u8 buff[16];
     u8 resp = BiI2CRd(buff, 0x100, 16);
@@ -423,7 +423,7 @@ u8 BiI2C100Rd(u8 *dst)
     return resp;
 }
 
-u8 BiI2CRd(u8 *dst, u16 addr, u16 len)
+u8 BiI2CRd(void *dst, u16 addr, u16 len)
 {
     return __BiI2CRd(addr, dst, len);
 }
@@ -677,7 +677,7 @@ void BiRTCSet(u8 *src, u8 flag)
     sysPI_wr(buff, REG_ADDR(REG_RTC_SET), 8);
 }
 
-u8 BiI2C100Wr(u8 *src)
+u8 BiRTCWr(u8 *src)
 {
     u8 buff[16];
     memset(buff, 0, 16);
