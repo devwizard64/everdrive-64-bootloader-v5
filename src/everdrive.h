@@ -6,20 +6,20 @@
 /* sys.h                                                                      */
 /******************************************************************************/
 
-#define u8 unsigned char
-#define u16 unsigned short
-#define u32 unsigned long
-#define u64 unsigned long long
+typedef unsigned char u8;
+typedef unsigned short u16;
+typedef unsigned long u32;
+typedef unsigned long long u64;
 
-#define vu8 volatile unsigned char
-#define vu16 volatile unsigned short
-#define vu32 volatile unsigned long
-#define vu64 volatile unsigned long long
+typedef volatile unsigned char vu8;
+typedef volatile unsigned short vu16;
+typedef volatile unsigned long vu32;
+typedef volatile unsigned long long vu64;
 
-#define s8 signed char
-#define s16 short
-#define s32 long
-#define s64 long long
+typedef signed char s8;
+typedef short s16;
+typedef long s32;
+typedef long long s64;
 
 #define CIC_6101 1
 #define CIC_6102 2

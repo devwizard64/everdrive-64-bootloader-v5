@@ -1,4 +1,4 @@
-# EverDrive-64 bootloader v5.00
+# EverDrive-64 bootloader v5
 
 A decompilation of the built-in bootloader ROM of EverDrive-64 X-series
 cartridges.  This is NOT a decompilation of the downloadable OS ROM.
@@ -17,7 +17,8 @@ cartridges.  This is NOT a decompilation of the downloadable OS ROM.
 * Take the assembly starting with the label and ending right before the end
   directives, then remove all occurrences of `"` and `\n`.  Paste this into the
   Target assembly field.
-* Paste the contents of `context.h` in the Context field.
+* Paste the contents of `everdrive.h` (without the `#include`s) in the Context
+  field.
 * After creating the scratch, under the Options tab, paste the following into
   the arguments field: `-mtune=vr4300 -march=vr4300 -std=gnu99 -Wall -G0 -O2`
 
