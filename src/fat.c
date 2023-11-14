@@ -1,1669 +1,672 @@
 #include "everdrive.h"
 
-const u8 lfn_char_struct[] = {1, 3, 5, 7, 9, 14, 16, 18, 20, 22, 24, 28, 30};
+/* FAT directory entry record */
+typedef struct {
+    u8 name[8];
+    u8 ext[3];
+    u8 attrib;
+    u8 x[8];
+    u16 cluster_hi;
+    u16 time;
+    u16 date;
+    u16 cluster_lo;
+    u32 size;
+} FatRecordHdr;
 
-u32 u_80029EE8[30];
+/* hdr_idx (record location) is 16*sector+index */
 
-asm(
-".section .scommon\n"
-".globl w_80029318; w_80029318: .word 0\n"
-".globl w_8002931C; w_8002931C: .word 0\n"
-".globl w_80029320; w_80029320: .word 0\n"
-);
+typedef struct {
+    u32 hdr_idx;                /* location of the first LFN record */
+    u32 dat_idx;                /* location of the standard FAT record */
+    u32 cluster;                /* first cluster */
+    u32 size;                   /* size in bytes */
+    u32 sec_available;          /* no. sectors in file */
+    u16 is_dir;                 /* directory attribute */
+} FatRecord;
 
-asm(
-".section .rodata.str1.8\n"
-".globl u_800287D0; u_800287D0: .asciz \"FAT\"; .balign 8\n"
-".globl u_800287D8; u_800287D8: .asciz \"MSDOS\"; .balign 8\n"
-);
+typedef struct {
+    FatRecord rec;
+    u8 name[200];               /* standard filename or LFN */
+} FatFullRecord;
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-"/*0x80003660*/  lui     $v0, %hi(u_80029EE8+16)\n"
-"/*0x80003664*/  sw      $a1, 0x0000($a0)\n"
-"/*0x80003668*/  addiu   $v0, %lo(u_80029EE8+16)\n"
-"/*0x8000366C*/  lbu     $v1, 0x0012($v0)\n"
-"/*0x80003670*/  addiu   $a1, $a1, -0x0002\n"
-"/*0x80003674*/  mult    $a1, $v1\n"
-"/*0x80003678*/  lw      $v0, 0x0004($v0)\n"
-"/*0x8000367C*/  sb      $zero, 0x0008($a0)\n"
-"/*0x80003680*/  mflo    $a1\n"
-"/*0x80003684*/  addu    $a1, $a1, $v0\n"
-"/*0x80003688*/  jr      $ra\n"
-"/*0x8000368C*/  sw      $a1, 0x0004($a0)\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+typedef struct {
+    u32 fat_entry;              /* sector of the first FAT */
+    u32 data_entry;             /* sector of the first data cluster */
+    u32 sectors_per_fat;        /* size of the FAT in sectors */
+    u32 _0C;                    /* no. sectors in this partition */
+    u16 _10;                    /* no. clusters in 1024 sectors */
+    u8 cluster_size;            /* no. sectors in cluster */
+} Fat;
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-".globl fat_80003690\n"
-"fat_80003690:\n"
-"/*0x80003690*/  lui     $v0, %hi(u_80029EE8+16)\n"
-"/*0x80003694*/  addiu   $v0, %lo(u_80029EE8+16)\n"
-"/*0x80003698*/  lw      $v1, 0x0004($v0)\n"
-"/*0x8000369C*/  lbu     $v0, 0x0012($v0)\n"
-"/*0x800036A0*/  subu    $a2, $a1, $v1\n"
-"/*0x800036A4*/  divu    $zero, $a2, $v0\n"
-"/*0x800036A8*/  teq     $v0, $zero, 7\n"
-"/*0x800036AC*/  sw      $a1, 0x0004($a0)\n"
-"/*0x800036B0*/  mflo    $a2\n"
-"/*0x800036B4*/  nop\n"
-"/*0x800036B8*/  nop\n"
-"/*0x800036BC*/  mult    $a2, $v0\n"
-"/*0x800036C0*/  addiu   $a2, $a2, 0x0002\n"
-"/*0x800036C4*/  sw      $a2, 0x0000($a0)\n"
-"/*0x800036C8*/  mflo    $v0\n"
-"/*0x800036CC*/  addu    $v1, $v0, $v1\n"
-"/*0x800036D0*/  subu    $a1, $a1, $v1\n"
-"/*0x800036D4*/  jr      $ra\n"
-"/*0x800036D8*/  sb      $a1, 0x0008($a0)\n"
-"/*0x800036DC*/  nop\n"
-"/*0x800036E0*/  lui     $v1, %hi(u_80029EE8+16)\n"
-"/*0x800036E4*/  addiu   $v1, %lo(u_80029EE8+16)\n"
-"/*0x800036E8*/  lbu     $v0, 0x0012($v1)\n"
-"/*0x800036EC*/  addiu   $a0, $a0, -0x0002\n"
-"/*0x800036F0*/  mult    $a0, $v0\n"
-"/*0x800036F4*/  lw      $v1, 0x0004($v1)\n"
-"/*0x800036F8*/  mflo    $v0\n"
-"/*0x800036FC*/  jr      $ra\n"
-"/*0x80003700*/  addu    $v0, $v0, $v1\n"
-"/*0x80003704*/  nop\n"
-"/*0x80003708*/  lui     $v1, %hi(u_80029EE8+16)\n"
-"/*0x8000370C*/  addiu   $v1, %lo(u_80029EE8+16)\n"
-"/*0x80003710*/  lw      $a1, 0x0004($v1)\n"
-"/*0x80003714*/  lbu     $v0, 0x0012($v1)\n"
-"/*0x80003718*/  subu    $a1, $a0, $a1\n"
-"/*0x8000371C*/  divu    $zero, $a1, $v0\n"
-"/*0x80003720*/  teq     $v0, $zero, 7\n"
-"/*0x80003724*/  mflo    $v0\n"
-"/*0x80003728*/  jr      $ra\n"
-"/*0x8000372C*/  addiu   $v0, $v0, 0x0002\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+typedef struct {
+    u32 table_sec_idx;          /* sector of the table cache */
+    u32 data_sec_idx;           /* sector of the data cache */
+    u32 _08;                    /* unused; set to 0 in fatInit */
+    u8 table_changed;           /* table cache is dirty */
+    u8 data_changed;            /* data cache is dirty */
+} FatCache;
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-".globl fat_80003730\n"
-"fat_80003730:\n"
-"/*0x80003730*/  lui     $v0, %hi(u_80029EE8+108)\n"
-"/*0x80003734*/  jr      $ra\n"
-"/*0x80003738*/  lw      $v0, %lo(u_80029EE8+108)($v0)\n"
-"/*0x8000373C*/  nop\n"
-"/*0x80003740*/  lui     $v0, %hi(u_80029EE8+112)\n"
-"/*0x80003744*/  jr      $ra\n"
-"/*0x80003748*/  lw      $v0, %lo(u_80029EE8+112)($v0)\n"
-"/*0x8000374C*/  nop\n"
-"/*0x80003750*/  lui     $v0, %hi(u_80029EE8+64)\n"
-"/*0x80003754*/  jr      $ra\n"
-"/*0x80003758*/  lhu     $v0, %lo(u_80029EE8+64)($v0)\n"
-"/*0x8000375C*/  nop\n"
-"/*0x80003760*/  lui     $v0, %hi(u_80029EE8+52)\n"
-"/*0x80003764*/  jr      $ra\n"
-"/*0x80003768*/  lw      $v0, %lo(u_80029EE8+52)($v0)\n"
-"/*0x8000376C*/  nop\n"
-"/*0x80003770*/  lui     $v0, %hi(u_80029EE8+56)\n"
-"/*0x80003774*/  jr      $ra\n"
-"/*0x80003778*/  lw      $v0, %lo(u_80029EE8+56)($v0)\n"
-"/*0x8000377C*/  nop\n"
-"/*0x80003780*/  lui     $v0, %hi(w_80029318)\n"
-"/*0x80003784*/  lw      $v0, %lo(w_80029318)($v0)\n"
-"/*0x80003788*/  andi    $a0, $a0, 0xFFFF\n"
-"/*0x8000378C*/  sll     $a0, $a0, 2\n"
-"/*0x80003790*/  addu    $a0, $v0, $a0\n"
-"/*0x80003794*/  jr      $ra\n"
-"/*0x80003798*/  lw      $v0, 0x0000($a0)\n"
-"/*0x8000379C*/  nop\n"
-"/*0x800037A0*/  lui     $v0, %hi(u_80029EE8+104)\n"
-"/*0x800037A4*/  lbu     $v1, %lo(u_80029EE8+104)($v0)\n"
-"/*0x800037A8*/  beqz    $v1, .L800037D0\n"
-"/*0x800037AC*/  lui     $v0, %hi(u_80029EE8+34)\n"
-"/*0x800037B0*/  lbu     $v0, %lo(u_80029EE8+34)($v0)\n"
-"/*0x800037B4*/  subu    $v1, $v0, $v1\n"
-"/*0x800037B8*/  andi    $v0, $v1, 0xFFFF\n"
-"/*0x800037BC*/  sltu    $v1, $a0, $v0\n"
-"/*0x800037C0*/  bnezl   $v1, .L800037C8\n"
-"/*0x800037C4*/  andi    $v0, $a0, 0xFFFF\n"
-".L800037C8:\n"
-"/*0x800037C8*/  jr      $ra\n"
-"/*0x800037CC*/  nop\n"
-".L800037D0:\n"
-"/*0x800037D0*/  lbu     $v0, %lo(u_80029EE8+34)($v0)\n"
-"/*0x800037D4*/  sltu    $v1, $v0, $a0\n"
-"/*0x800037D8*/  bnezl   $v1, .L800037E8\n"
-"/*0x800037DC*/  daddu   $a0, $v0, $zero\n"
-"/*0x800037E0*/  jr      $ra\n"
-"/*0x800037E4*/  andi    $v0, $a0, 0xFFFF\n"
-".L800037E8:\n"
-"/*0x800037E8*/  andi    $v0, $a0, 0xFFFF\n"
-"/*0x800037EC*/  jr      $ra\n"
-"/*0x800037F0*/  nop\n"
-"/*0x800037F4*/  nop\n"
-"/*0x800037F8*/  lbu     $a1, 0x0001($a0)\n"
-"/*0x800037FC*/  lbu     $v0, 0x0002($a0)\n"
-"/*0x80003800*/  lbu     $v1, 0x0003($a0)\n"
-"/*0x80003804*/  sll     $a1, $a1, 8\n"
-"/*0x80003808*/  lbu     $a0, 0x0000($a0)\n"
-"/*0x8000380C*/  sll     $v0, $v0, 16\n"
-"/*0x80003810*/  or      $v0, $a1, $v0\n"
-"/*0x80003814*/  or      $v0, $v0, $a0\n"
-"/*0x80003818*/  sll     $v1, $v1, 24\n"
-"/*0x8000381C*/  jr      $ra\n"
-"/*0x80003820*/  or      $v0, $v0, $v1\n"
-"/*0x80003824*/  nop\n"
-"/*0x80003828*/  lbu     $v0, 0x0001($a0)\n"
-"/*0x8000382C*/  lbu     $v1, 0x0000($a0)\n"
-"/*0x80003830*/  sll     $v0, $v0, 8\n"
-"/*0x80003834*/  jr      $ra\n"
-"/*0x80003838*/  or      $v0, $v0, $v1\n"
-"/*0x8000383C*/  nop\n"
-"/*0x80003840*/  srl     $a2, $a0, 24\n"
-"/*0x80003844*/  srl     $v1, $a0, 8\n"
-"/*0x80003848*/  srl     $v0, $a0, 16\n"
-"/*0x8000384C*/  sb      $a2, 0x0003($a1)\n"
-"/*0x80003850*/  sb      $v1, 0x0001($a1)\n"
-"/*0x80003854*/  sb      $v0, 0x0002($a1)\n"
-"/*0x80003858*/  jr      $ra\n"
-"/*0x8000385C*/  sb      $a0, 0x0000($a1)\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+typedef struct {
+    u32 cluster;                /* current cluster */
+    u32 sector;                 /* current sector */
+    u8 in_cluster_ptr;          /* sector offset in the cluster */
+} FatPos;
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-".globl fat_80003860\n"
-"fat_80003860:\n"
-"/*0x80003860*/  addiu   $sp, $sp, -0x0048\n"
-"/*0x80003864*/  sd      $s0, 0x0020($sp)\n"
-"/*0x80003868*/  lui     $s0, %hi(u_80029EE8)\n"
-"/*0x8000386C*/  lw      $v1, %lo(u_80029EE8)($s0)\n"
-"/*0x80003870*/  sd      $s1, 0x0028($sp)\n"
-"/*0x80003874*/  sd      $ra, 0x0040($sp)\n"
-"/*0x80003878*/  sd      $s3, 0x0038($sp)\n"
-"/*0x8000387C*/  sd      $s2, 0x0030($sp)\n"
-"/*0x80003880*/  daddu   $s1, $a0, $zero\n"
-"/*0x80003884*/  beq     $v1, $a0, .L800038FC\n"
-"/*0x80003888*/  daddu   $v0, $zero, $zero\n"
-"/*0x8000388C*/  addiu   $v0, $s0, %lo(u_80029EE8)\n"
-"/*0x80003890*/  lbu     $a0, 0x000C($v0)\n"
-"/*0x80003894*/  bnez    $a0, .L800038D0\n"
-"/*0x80003898*/  lui     $s3, %hi(u_80029EE8+16)\n"
-"/*0x8000389C*/  lui     $s2, %hi(w_8002931C)\n"
-"/*0x800038A0*/  lw      $a0, %lo(u_80029EE8+16)($s3)\n"
-".L800038A4:\n"
-"/*0x800038A4*/  lw      $a1, %lo(w_8002931C)($s2)\n"
-"/*0x800038A8*/  sw      $s1, %lo(u_80029EE8)($s0)\n"
-"/*0x800038AC*/  addu    $a0, $s1, $a0\n"
-"/*0x800038B0*/  ld      $ra, 0x0040($sp)\n"
-"/*0x800038B4*/  ld      $s3, 0x0038($sp)\n"
-"/*0x800038B8*/  ld      $s2, 0x0030($sp)\n"
-"/*0x800038BC*/  ld      $s1, 0x0028($sp)\n"
-"/*0x800038C0*/  ld      $s0, 0x0020($sp)\n"
-"/*0x800038C4*/  li      $a2, 0x0001\n"
-"/*0x800038C8*/  j       diskReadToRam\n"
-"/*0x800038CC*/  addiu   $sp, $sp, 0x0048\n"
-".L800038D0:\n"
-"/*0x800038D0*/  lw      $a0, %lo(u_80029EE8+16)($s3)\n"
-"/*0x800038D4*/  lui     $s2, %hi(w_8002931C)\n"
-"/*0x800038D8*/  addu    $v1, $a0, $v1\n"
-"/*0x800038DC*/  lw      $a1, %lo(w_8002931C)($s2)\n"
-"/*0x800038E0*/  daddu   $a0, $v1, $zero\n"
-"/*0x800038E4*/  li      $a2, 0x0001\n"
-"/*0x800038E8*/  sb      $zero, 0x000C($v0)\n"
-"/*0x800038EC*/  jal     diskWrite\n"
-"/*0x800038F0*/  sw      $v1, %lo(u_80029EE8)($s0)\n"
-"/*0x800038F4*/  beqzl   $v0, .L80003918\n"
-"/*0x800038F8*/  addiu   $v0, $s3, %lo(u_80029EE8+16)\n"
-".L800038FC:\n"
-"/*0x800038FC*/  ld      $ra, 0x0040($sp)\n"
-".L80003900:\n"
-"/*0x80003900*/  ld      $s3, 0x0038($sp)\n"
-"/*0x80003904*/  ld      $s2, 0x0030($sp)\n"
-"/*0x80003908*/  ld      $s1, 0x0028($sp)\n"
-"/*0x8000390C*/  ld      $s0, 0x0020($sp)\n"
-"/*0x80003910*/  jr      $ra\n"
-"/*0x80003914*/  addiu   $sp, $sp, 0x0048\n"
-".L80003918:\n"
-"/*0x80003918*/  lw      $a0, 0x0008($v0)\n"
-"/*0x8000391C*/  lw      $v0, %lo(u_80029EE8)($s0)\n"
-"/*0x80003920*/  lw      $a1, %lo(w_8002931C)($s2)\n"
-"/*0x80003924*/  addu    $a0, $a0, $v0\n"
-"/*0x80003928*/  jal     diskWrite\n"
-"/*0x8000392C*/  li      $a2, 0x0001\n"
-"/*0x80003930*/  bnez    $v0, .L800038FC\n"
-"/*0x80003934*/  lui     $v1, 0x0FFFFFFF >> 16\n"
-"/*0x80003938*/  ori     $v1, 0x0FFFFFFF & 0xFFFF\n"
-"/*0x8000393C*/  bne     $s1, $v1, .L800038A4\n"
-"/*0x80003940*/  lw      $a0, %lo(u_80029EE8+16)($s3)\n"
-"/*0x80003944*/  j       .L80003900\n"
-"/*0x80003948*/  ld      $ra, 0x0040($sp)\n"
-"/*0x8000394C*/  nop\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+typedef struct {
+    FatPos pos;
+    u32 entry_cluster;          /* first cluster */
+    u32 _10;                    /* unknown */
+    u32 current_idx;            /* current header index */
+    u16 size;                   /* no. entries in the directory */
+    u8 is_root;                 /* root directory flag */
+} Dir;
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-".globl fat_80003950\n"
-"fat_80003950:\n"
-"/*0x80003950*/  addiu   $sp, $sp, -0x0038\n"
-"/*0x80003954*/  sd      $s0, 0x0020($sp)\n"
-"/*0x80003958*/  lw      $s0, 0x0000($a0)\n"
-"/*0x8000395C*/  sd      $s1, 0x0028($sp)\n"
-"/*0x80003960*/  daddu   $s1, $a0, $zero\n"
-"/*0x80003964*/  sd      $ra, 0x0030($sp)\n"
-"/*0x80003968*/  jal     fat_80003860\n"
-"/*0x8000396C*/  srl     $a0, $s0, 7\n"
-"/*0x80003970*/  bnez    $v0, .L800039C4\n"
-"/*0x80003974*/  lui     $v1, %hi(w_8002931C)\n"
-"/*0x80003978*/  lw      $v1, %lo(w_8002931C)($v1)\n"
-"/*0x8000397C*/  andi    $s0, $s0, 0x007F\n"
-"/*0x80003980*/  sll     $s0, $s0, 2\n"
-"/*0x80003984*/  addu    $s0, $v1, $s0\n"
-"/*0x80003988*/  lbu     $a2, 0x0001($s0)\n"
-"/*0x8000398C*/  lbu     $v1, 0x0002($s0)\n"
-"/*0x80003990*/  sll     $a2, $a2, 8\n"
-"/*0x80003994*/  sll     $v1, $v1, 16\n"
-"/*0x80003998*/  lbu     $a0, 0x0003($s0)\n"
-"/*0x8000399C*/  lbu     $a1, 0x0000($s0)\n"
-"/*0x800039A0*/  or      $v1, $a2, $v1\n"
-"/*0x800039A4*/  sll     $a0, $a0, 24\n"
-"/*0x800039A8*/  or      $v1, $v1, $a1\n"
-"/*0x800039AC*/  or      $v1, $v1, $a0\n"
-"/*0x800039B0*/  lui     $a0, 0x0FFFFFFF >> 16\n"
-"/*0x800039B4*/  ori     $a0, 0x0FFFFFFF & 0xFFFF\n"
-"/*0x800039B8*/  beq     $v1, $a0, .L800039D8\n"
-"/*0x800039BC*/  ld      $ra, 0x0030($sp)\n"
-"/*0x800039C0*/  sw      $v1, 0x0000($s1)\n"
-".L800039C4:\n"
-"/*0x800039C4*/  ld      $ra, 0x0030($sp)\n"
-"/*0x800039C8*/  ld      $s1, 0x0028($sp)\n"
-"/*0x800039CC*/  ld      $s0, 0x0020($sp)\n"
-"/*0x800039D0*/  jr      $ra\n"
-"/*0x800039D4*/  addiu   $sp, $sp, 0x0038\n"
-".L800039D8:\n"
-"/*0x800039D8*/  li      $v0, 0x00F3\n"
-"/*0x800039DC*/  ld      $s1, 0x0028($sp)\n"
-"/*0x800039E0*/  ld      $s0, 0x0020($sp)\n"
-"/*0x800039E4*/  jr      $ra\n"
-"/*0x800039E8*/  addiu   $sp, $sp, 0x0038\n"
-"/*0x800039EC*/  nop\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+typedef struct {
+    Dir dir;
+} FullDir;
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-".globl fat_800039F0\n"
-"fat_800039F0:\n"
-"/*0x800039F0*/  addiu   $sp, $sp, -0x0030\n"
-"/*0x800039F4*/  sd      $s0, 0x0020($sp)\n"
-"/*0x800039F8*/  sd      $ra, 0x0028($sp)\n"
-"/*0x800039FC*/  jal     fat_80003950\n"
-"/*0x80003A00*/  daddu   $s0, $a0, $zero\n"
-"/*0x80003A04*/  bnez    $v0, .L80003A34\n"
-"/*0x80003A08*/  lui     $v1, %hi(u_80029EE8+16)\n"
-"/*0x80003A0C*/  addiu   $v1, %lo(u_80029EE8+16)\n"
-"/*0x80003A10*/  sb      $zero, 0x0008($s0)\n"
-"/*0x80003A14*/  lw      $a0, 0x0000($s0)\n"
-"/*0x80003A18*/  lbu     $a1, 0x0012($v1)\n"
-"/*0x80003A1C*/  addiu   $a0, $a0, -0x0002\n"
-"/*0x80003A20*/  mult    $a1, $a0\n"
-"/*0x80003A24*/  lw      $a0, 0x0004($v1)\n"
-"/*0x80003A28*/  mflo    $a1\n"
-"/*0x80003A2C*/  addu    $v1, $a1, $a0\n"
-"/*0x80003A30*/  sw      $v1, 0x0004($s0)\n"
-".L80003A34:\n"
-"/*0x80003A34*/  ld      $ra, 0x0028($sp)\n"
-"/*0x80003A38*/  ld      $s0, 0x0020($sp)\n"
-"/*0x80003A3C*/  jr      $ra\n"
-"/*0x80003A40*/  addiu   $sp, $sp, 0x0030\n"
-"/*0x80003A44*/  nop\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+typedef struct {
+    FatPos pos;
+    u32 hdr_idx;                /* header index of this entry */
+    FatRecordHdr *hdr;          /* directory entry record */
+} Record;
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-".globl fat_80003A48\n"
-"fat_80003A48:\n"
-"/*0x80003A48*/  lui     $v1, %hi(u_80029EE8+96)\n"
-"/*0x80003A4C*/  addiu   $v1, %lo(u_80029EE8+96)\n"
-"/*0x80003A50*/  lbu     $v0, 0x0008($v1)\n"
-"/*0x80003A54*/  andi    $a0, $a0, 0xFFFF\n"
-"/*0x80003A58*/  lui     $a1, %hi(u_80029EE8+34)\n"
-"/*0x80003A5C*/  addu    $v0, $a0, $v0\n"
-"/*0x80003A60*/  lbu     $a1, %lo(u_80029EE8+34)($a1)\n"
-"/*0x80003A64*/  andi    $v0, $v0, 0x00FF\n"
-"/*0x80003A68*/  beq     $a1, $v0, .L80003A88\n"
-"/*0x80003A6C*/  sb      $v0, 0x0008($v1)\n"
-"/*0x80003A70*/  lw      $a1, 0x0004($v1)\n"
-"/*0x80003A74*/  daddu   $v0, $zero, $zero\n"
-"/*0x80003A78*/  addu    $a0, $a0, $a1\n"
-"/*0x80003A7C*/  jr      $ra\n"
-"/*0x80003A80*/  sw      $a0, 0x0004($v1)\n"
-"/*0x80003A84*/  nop\n"
-".L80003A88:\n"
-"/*0x80003A88*/  j       fat_800039F0\n"
-"/*0x80003A8C*/  daddu   $a0, $v1, $zero\n"
-".L80003A90:\n"
-"/*0x80003A90*/  addiu   $sp, $sp, -0x0060\n"
-"/*0x80003A94*/  sd      $s2, 0x0030($sp)\n"
-"/*0x80003A98*/  lui     $s2, %hi(u_80029EE8+96)\n"
-"/*0x80003A9C*/  addiu   $s2, %lo(u_80029EE8+96)\n"
-"/*0x80003AA0*/  lw      $v1, 0x000C($s2)\n"
-"/*0x80003AA4*/  sd      $s0, 0x0020($sp)\n"
-"/*0x80003AA8*/  daddu   $s0, $a1, $zero\n"
-"/*0x80003AAC*/  sltu    $a1, $v1, $a1\n"
-"/*0x80003AB0*/  sd      $s4, 0x0040($sp)\n"
-"/*0x80003AB4*/  sd      $s3, 0x0038($sp)\n"
-"/*0x80003AB8*/  sd      $ra, 0x0058($sp)\n"
-"/*0x80003ABC*/  sd      $s6, 0x0050($sp)\n"
-"/*0x80003AC0*/  sd      $s5, 0x0048($sp)\n"
-"/*0x80003AC4*/  sd      $s1, 0x0028($sp)\n"
-"/*0x80003AC8*/  daddu   $s3, $a0, $zero\n"
-"/*0x80003ACC*/  andi    $s4, $a2, 0x00FF\n"
-"/*0x80003AD0*/  bnez    $a1, .L80003BA8\n"
-"/*0x80003AD4*/  li      $v0, 0x00F3\n"
-"/*0x80003AD8*/  subu    $v1, $v1, $s0\n"
-"/*0x80003ADC*/  beqz    $s0, .L80003BD0\n"
-"/*0x80003AE0*/  sw      $v1, 0x000C($s2)\n"
-"/*0x80003AE4*/  lbu     $v0, 0x0008($s2)\n"
-"/*0x80003AE8*/  lui     $s6, %hi(u_80029EE8+16)\n"
-"/*0x80003AEC*/  addiu   $s6, %lo(u_80029EE8+16)\n"
-"/*0x80003AF0*/  bnez    $v0, .L80003B6C\n"
-"/*0x80003AF4*/  li      $s5, 0x0001\n"
-".L80003AF8:\n"
-"/*0x80003AF8*/  lbu     $v0, 0x0012($s6)\n"
-"/*0x80003AFC*/  sltu    $v1, $v0, $s0\n"
-"/*0x80003B00*/  beqz    $v1, .L80003B0C\n"
-"/*0x80003B04*/  daddu   $s1, $s0, $zero\n"
-"/*0x80003B08*/  daddu   $s1, $v0, $zero\n"
-".L80003B0C:\n"
-"/*0x80003B0C*/  andi    $s1, $s1, 0xFFFF\n"
-".L80003B10:\n"
-"/*0x80003B10*/  beql    $s4, $s5, .L80003B90\n"
-"/*0x80003B14*/  lw      $a0, 0x0004($s2)\n"
-".L80003B18:\n"
-"/*0x80003B18*/  lw      $a0, 0x0004($s2)\n"
-"/*0x80003B1C*/  daddu   $a1, $s3, $zero\n"
-"/*0x80003B20*/  jal     diskReadToRom\n"
-"/*0x80003B24*/  daddu   $a2, $s1, $zero\n"
-"/*0x80003B28*/  bnez    $v0, .L80003BAC\n"
-"/*0x80003B2C*/  ld      $ra, 0x0058($sp)\n"
-"/*0x80003B30*/  subu    $s0, $s0, $s1\n"
-".L80003B34:\n"
-"/*0x80003B34*/  bnez    $s0, .L80003B48\n"
-"/*0x80003B38*/  nop\n"
-"/*0x80003B3C*/  lw      $v0, 0x000C($s2)\n"
-"/*0x80003B40*/  beqz    $v0, .L80003BD4\n"
-"/*0x80003B44*/  ld      $ra, 0x0058($sp)\n"
-".L80003B48:\n"
-"/*0x80003B48*/  jal     fat_80003A48\n"
-"/*0x80003B4C*/  daddu   $a0, $s1, $zero\n"
-"/*0x80003B50*/  bnez    $v0, .L80003BAC\n"
-"/*0x80003B54*/  ld      $ra, 0x0058($sp)\n"
-"/*0x80003B58*/  beqzl   $s0, .L80003BB0\n"
-"/*0x80003B5C*/  ld      $s6, 0x0050($sp)\n"
-"/*0x80003B60*/  lbu     $v0, 0x0008($s2)\n"
-"/*0x80003B64*/  beqz    $v0, .L80003AF8\n"
-"/*0x80003B68*/  addu    $s3, $s3, $s1\n"
-".L80003B6C:\n"
-"/*0x80003B6C*/  lbu     $s1, 0x0012($s6)\n"
-"/*0x80003B70*/  subu    $s1, $s1, $v0\n"
-"/*0x80003B74*/  andi    $s1, $s1, 0xFFFF\n"
-"/*0x80003B78*/  sltu    $v0, $s0, $s1\n"
-"/*0x80003B7C*/  beqz    $v0, .L80003B10\n"
-"/*0x80003B80*/  nop\n"
-"/*0x80003B84*/  bne     $s4, $s5, .L80003B18\n"
-"/*0x80003B88*/  andi    $s1, $s0, 0xFFFF\n"
-"/*0x80003B8C*/  lw      $a0, 0x0004($s2)\n"
-".L80003B90:\n"
-"/*0x80003B90*/  daddu   $a1, $s3, $zero\n"
-"/*0x80003B94*/  jal     disk_80002D08\n"
-"/*0x80003B98*/  daddu   $a2, $s1, $zero\n"
-"/*0x80003B9C*/  beqz    $v0, .L80003B34\n"
-"/*0x80003BA0*/  subu    $s0, $s0, $s1\n"
-"/*0x80003BA4*/  nop\n"
-".L80003BA8:\n"
-"/*0x80003BA8*/  ld      $ra, 0x0058($sp)\n"
-".L80003BAC:\n"
-"/*0x80003BAC*/  ld      $s6, 0x0050($sp)\n"
-".L80003BB0:\n"
-"/*0x80003BB0*/  ld      $s5, 0x0048($sp)\n"
-"/*0x80003BB4*/  ld      $s4, 0x0040($sp)\n"
-"/*0x80003BB8*/  ld      $s3, 0x0038($sp)\n"
-"/*0x80003BBC*/  ld      $s2, 0x0030($sp)\n"
-"/*0x80003BC0*/  ld      $s1, 0x0028($sp)\n"
-"/*0x80003BC4*/  ld      $s0, 0x0020($sp)\n"
-"/*0x80003BC8*/  jr      $ra\n"
-"/*0x80003BCC*/  addiu   $sp, $sp, 0x0060\n"
-".L80003BD0:\n"
-"/*0x80003BD0*/  ld      $ra, 0x0058($sp)\n"
-".L80003BD4:\n"
-"/*0x80003BD4*/  daddu   $v0, $zero, $zero\n"
-"/*0x80003BD8*/  ld      $s6, 0x0050($sp)\n"
-"/*0x80003BDC*/  ld      $s5, 0x0048($sp)\n"
-"/*0x80003BE0*/  ld      $s4, 0x0040($sp)\n"
-"/*0x80003BE4*/  ld      $s3, 0x0038($sp)\n"
-"/*0x80003BE8*/  ld      $s2, 0x0030($sp)\n"
-"/*0x80003BEC*/  ld      $s1, 0x0028($sp)\n"
-"/*0x80003BF0*/  ld      $s0, 0x0020($sp)\n"
-"/*0x80003BF4*/  jr      $ra\n"
-"/*0x80003BF8*/  addiu   $sp, $sp, 0x0060\n"
-"/*0x80003BFC*/  nop\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+typedef struct {
+    FatPos pos;
+    u32 sec_available;          /* no. sectors left in file */
+    u32 hdr_idx;                /* header index for the file data */
+} File;
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-".globl fat_80003C00\n"
-"fat_80003C00:\n"
-"/*0x80003C00*/  j       .L80003A90\n"
-"/*0x80003C04*/  daddu   $a2, $zero, $zero\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+FatCache fat_cache;
+Fat current_fat;
+Dir currentDir;
+Record currentRecord;
+File currentFile;
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-".globl fat_80003C08\n"
-"fat_80003C08:\n"
-"/*0x80003C08*/  lbu     $v1, 0x0008($a0)\n"
-"/*0x80003C0C*/  lw      $a1, 0x0004($a0)\n"
-"/*0x80003C10*/  addiu   $v1, $v1, 0x0001\n"
-"/*0x80003C14*/  andi    $v1, $v1, 0x00FF\n"
-"/*0x80003C18*/  addiu   $a1, $a1, 0x0001\n"
-"/*0x80003C1C*/  sw      $a1, 0x0004($a0)\n"
-"/*0x80003C20*/  sb      $v1, 0x0008($a0)\n"
-"/*0x80003C24*/  lui     $v0, %hi(u_80029EE8+34)\n"
-"/*0x80003C28*/  lbu     $v0, %lo(u_80029EE8+34)($v0)\n"
-"/*0x80003C2C*/  beq     $v0, $v1, .L80003C40\n"
-"/*0x80003C30*/  daddu   $v0, $zero, $zero\n"
-"/*0x80003C34*/  jr      $ra\n"
-"/*0x80003C38*/  nop\n"
-"/*0x80003C3C*/  nop\n"
-".L80003C40:\n"
-"/*0x80003C40*/  j       fat_800039F0\n"
-"/*0x80003C44*/  nop\n"
-"/*0x80003C48*/  addiu   $sp, $sp, -0x0058\n"
-"/*0x80003C4C*/  sd      $s1, 0x0028($sp)\n"
-"/*0x80003C50*/  lui     $s1, %hi(u_80029EE8+96)\n"
-"/*0x80003C54*/  addiu   $s1, %lo(u_80029EE8+96)\n"
-"/*0x80003C58*/  lw      $v0, 0x000C($s1)\n"
-"/*0x80003C5C*/  sd      $s0, 0x0020($sp)\n"
-"/*0x80003C60*/  andi    $s0, $a0, 0xFFFF\n"
-"/*0x80003C64*/  subu    $v0, $v0, $s0\n"
-"/*0x80003C68*/  sd      $ra, 0x0050($sp)\n"
-"/*0x80003C6C*/  sd      $s5, 0x0048($sp)\n"
-"/*0x80003C70*/  sd      $s4, 0x0040($sp)\n"
-"/*0x80003C74*/  sd      $s3, 0x0038($sp)\n"
-"/*0x80003C78*/  sd      $s2, 0x0030($sp)\n"
-"/*0x80003C7C*/  beqz    $s0, .L80003CCC\n"
-"/*0x80003C80*/  sw      $v0, 0x000C($s1)\n"
-"/*0x80003C84*/  lui     $s2, %hi(u_80029EE8+16)\n"
-"/*0x80003C88*/  addiu   $s2, %lo(u_80029EE8+16)\n"
-"/*0x80003C8C*/  daddu   $s5, $s2, $zero\n"
-"/*0x80003C90*/  daddu   $s3, $s1, $zero\n"
-"/*0x80003C94*/  daddu   $s4, $s1, $zero\n"
-"/*0x80003C98*/  lbu     $v0, 0x0012($s2)\n"
-".L80003C9C:\n"
-"/*0x80003C9C*/  sltu    $v0, $s0, $v0\n"
-"/*0x80003CA0*/  bnez    $v0, .L80003CB4\n"
-"/*0x80003CA4*/  daddu   $a0, $s3, $zero\n"
-"/*0x80003CA8*/  lbu     $v0, 0x0008($s1)\n"
-"/*0x80003CAC*/  beqz    $v0, .L80003CF8\n"
-"/*0x80003CB0*/  nop\n"
-".L80003CB4:\n"
-"/*0x80003CB4*/  jal     fat_80003C08\n"
-"/*0x80003CB8*/  addiu   $s0, $s0, -0x0001\n"
-"/*0x80003CBC*/  bnez    $v0, .L80003CD0\n"
-"/*0x80003CC0*/  andi    $s0, $s0, 0xFFFF\n"
-"/*0x80003CC4*/  bnezl   $s0, .L80003C9C\n"
-"/*0x80003CC8*/  lbu     $v0, 0x0012($s2)\n"
-".L80003CCC:\n"
-"/*0x80003CCC*/  daddu   $v0, $zero, $zero\n"
-".L80003CD0:\n"
-"/*0x80003CD0*/  ld      $ra, 0x0050($sp)\n"
-".L80003CD4:\n"
-"/*0x80003CD4*/  ld      $s5, 0x0048($sp)\n"
-"/*0x80003CD8*/  ld      $s4, 0x0040($sp)\n"
-"/*0x80003CDC*/  ld      $s3, 0x0038($sp)\n"
-"/*0x80003CE0*/  ld      $s2, 0x0030($sp)\n"
-"/*0x80003CE4*/  ld      $s1, 0x0028($sp)\n"
-"/*0x80003CE8*/  ld      $s0, 0x0020($sp)\n"
-"/*0x80003CEC*/  jr      $ra\n"
-"/*0x80003CF0*/  addiu   $sp, $sp, 0x0058\n"
-"/*0x80003CF4*/  nop\n"
-".L80003CF8:\n"
-"/*0x80003CF8*/  jal     fat_800039F0\n"
-"/*0x80003CFC*/  daddu   $a0, $s4, $zero\n"
-"/*0x80003D00*/  bnez    $v0, .L80003CD4\n"
-"/*0x80003D04*/  ld      $ra, 0x0050($sp)\n"
-"/*0x80003D08*/  lbu     $v0, 0x0012($s5)\n"
-"/*0x80003D0C*/  subu    $s0, $s0, $v0\n"
-"/*0x80003D10*/  andi    $s0, $s0, 0xFFFF\n"
-"/*0x80003D14*/  bnezl   $s0, .L80003C9C\n"
-"/*0x80003D18*/  lbu     $v0, 0x0012($s2)\n"
-"/*0x80003D1C*/  j       .L80003CD4\n"
-"/*0x80003D20*/  daddu   $v0, $zero, $zero\n"
-"/*0x80003D24*/  nop\n"
-".L80003D28:\n"
-"/*0x80003D28*/  addiu   $sp, $sp, -0x0060\n"
-"/*0x80003D2C*/  sd      $s2, 0x0030($sp)\n"
-"/*0x80003D30*/  lui     $s2, %hi(u_80029EE8+96)\n"
-"/*0x80003D34*/  addiu   $s2, %lo(u_80029EE8+96)\n"
-"/*0x80003D38*/  lw      $v1, 0x000C($s2)\n"
-"/*0x80003D3C*/  sd      $s0, 0x0020($sp)\n"
-"/*0x80003D40*/  andi    $s0, $a1, 0xFFFF\n"
-"/*0x80003D44*/  sltu    $a1, $v1, $s0\n"
-"/*0x80003D48*/  sd      $s4, 0x0040($sp)\n"
-"/*0x80003D4C*/  sd      $s3, 0x0038($sp)\n"
-"/*0x80003D50*/  sd      $ra, 0x0058($sp)\n"
-"/*0x80003D54*/  sd      $s6, 0x0050($sp)\n"
-"/*0x80003D58*/  sd      $s5, 0x0048($sp)\n"
-"/*0x80003D5C*/  sd      $s1, 0x0028($sp)\n"
-"/*0x80003D60*/  daddu   $s3, $a0, $zero\n"
-"/*0x80003D64*/  andi    $s4, $a2, 0x00FF\n"
-"/*0x80003D68*/  bnez    $a1, .L80003E48\n"
-"/*0x80003D6C*/  li      $v0, 0x00F3\n"
-"/*0x80003D70*/  subu    $v1, $v1, $s0\n"
-"/*0x80003D74*/  beqz    $s0, .L80003E70\n"
-"/*0x80003D78*/  sw      $v1, 0x000C($s2)\n"
-"/*0x80003D7C*/  lbu     $v0, 0x0008($s2)\n"
-"/*0x80003D80*/  lui     $s6, %hi(u_80029EE8+16)\n"
-"/*0x80003D84*/  addiu   $s6, %lo(u_80029EE8+16)\n"
-"/*0x80003D88*/  bnez    $v0, .L80003E0C\n"
-"/*0x80003D8C*/  li      $s5, 0x0001\n"
-".L80003D90:\n"
-"/*0x80003D90*/  lbu     $v0, 0x0012($s6)\n"
-"/*0x80003D94*/  sltu    $v1, $v0, $s0\n"
-"/*0x80003D98*/  beqz    $v1, .L80003DA4\n"
-"/*0x80003D9C*/  daddu   $s1, $s0, $zero\n"
-"/*0x80003DA0*/  daddu   $s1, $v0, $zero\n"
-".L80003DA4:\n"
-"/*0x80003DA4*/  andi    $s1, $s1, 0xFFFF\n"
-".L80003DA8:\n"
-"/*0x80003DA8*/  beql    $s4, $s5, .L80003E30\n"
-"/*0x80003DAC*/  lw      $a0, 0x0004($s2)\n"
-".L80003DB0:\n"
-"/*0x80003DB0*/  lw      $a0, 0x0004($s2)\n"
-"/*0x80003DB4*/  daddu   $a1, $s3, $zero\n"
-"/*0x80003DB8*/  jal     diskReadToRam\n"
-"/*0x80003DBC*/  daddu   $a2, $s1, $zero\n"
-"/*0x80003DC0*/  bnez    $v0, .L80003E4C\n"
-"/*0x80003DC4*/  ld      $ra, 0x0058($sp)\n"
-"/*0x80003DC8*/  subu    $s0, $s0, $s1\n"
-".L80003DCC:\n"
-"/*0x80003DCC*/  andi    $s0, $s0, 0xFFFF\n"
-"/*0x80003DD0*/  bnez    $s0, .L80003DE4\n"
-"/*0x80003DD4*/  nop\n"
-"/*0x80003DD8*/  lw      $v0, 0x000C($s2)\n"
-"/*0x80003DDC*/  beqz    $v0, .L80003E74\n"
-"/*0x80003DE0*/  ld      $ra, 0x0058($sp)\n"
-".L80003DE4:\n"
-"/*0x80003DE4*/  jal     fat_80003A48\n"
-"/*0x80003DE8*/  daddu   $a0, $s1, $zero\n"
-"/*0x80003DEC*/  bnez    $v0, .L80003E4C\n"
-"/*0x80003DF0*/  ld      $ra, 0x0058($sp)\n"
-"/*0x80003DF4*/  beqz    $s0, .L80003E4C\n"
-"/*0x80003DF8*/  sll     $s1, $s1, 9\n"
-"/*0x80003DFC*/  lbu     $v0, 0x0008($s2)\n"
-"/*0x80003E00*/  andi    $s1, $s1, 0xFFFF\n"
-"/*0x80003E04*/  beqz    $v0, .L80003D90\n"
-"/*0x80003E08*/  addu    $s3, $s3, $s1\n"
-".L80003E0C:\n"
-"/*0x80003E0C*/  lbu     $s1, 0x0012($s6)\n"
-"/*0x80003E10*/  subu    $s1, $s1, $v0\n"
-"/*0x80003E14*/  andi    $s1, $s1, 0xFFFF\n"
-"/*0x80003E18*/  sltu    $v0, $s0, $s1\n"
-"/*0x80003E1C*/  beqz    $v0, .L80003DA8\n"
-"/*0x80003E20*/  nop\n"
-"/*0x80003E24*/  bne     $s4, $s5, .L80003DB0\n"
-"/*0x80003E28*/  daddu   $s1, $s0, $zero\n"
-"/*0x80003E2C*/  lw      $a0, 0x0004($s2)\n"
-".L80003E30:\n"
-"/*0x80003E30*/  daddu   $a1, $s3, $zero\n"
-"/*0x80003E34*/  jal     diskWrite\n"
-"/*0x80003E38*/  daddu   $a2, $s1, $zero\n"
-"/*0x80003E3C*/  beqz    $v0, .L80003DCC\n"
-"/*0x80003E40*/  subu    $s0, $s0, $s1\n"
-"/*0x80003E44*/  nop\n"
-".L80003E48:\n"
-"/*0x80003E48*/  ld      $ra, 0x0058($sp)\n"
-".L80003E4C:\n"
-"/*0x80003E4C*/  ld      $s6, 0x0050($sp)\n"
-"/*0x80003E50*/  ld      $s5, 0x0048($sp)\n"
-"/*0x80003E54*/  ld      $s4, 0x0040($sp)\n"
-"/*0x80003E58*/  ld      $s3, 0x0038($sp)\n"
-"/*0x80003E5C*/  ld      $s2, 0x0030($sp)\n"
-"/*0x80003E60*/  ld      $s1, 0x0028($sp)\n"
-"/*0x80003E64*/  ld      $s0, 0x0020($sp)\n"
-"/*0x80003E68*/  jr      $ra\n"
-"/*0x80003E6C*/  addiu   $sp, $sp, 0x0060\n"
-".L80003E70:\n"
-"/*0x80003E70*/  ld      $ra, 0x0058($sp)\n"
-".L80003E74:\n"
-"/*0x80003E74*/  daddu   $v0, $zero, $zero\n"
-"/*0x80003E78*/  ld      $s6, 0x0050($sp)\n"
-"/*0x80003E7C*/  ld      $s5, 0x0048($sp)\n"
-"/*0x80003E80*/  ld      $s4, 0x0040($sp)\n"
-"/*0x80003E84*/  ld      $s3, 0x0038($sp)\n"
-"/*0x80003E88*/  ld      $s2, 0x0030($sp)\n"
-"/*0x80003E8C*/  ld      $s1, 0x0028($sp)\n"
-"/*0x80003E90*/  ld      $s0, 0x0020($sp)\n"
-"/*0x80003E94*/  jr      $ra\n"
-"/*0x80003E98*/  addiu   $sp, $sp, 0x0060\n"
-"/*0x80003E9C*/  nop\n"
-"/*0x80003EA0*/  andi    $a1, $a1, 0xFFFF\n"
-"/*0x80003EA4*/  j       .L80003D28\n"
-"/*0x80003EA8*/  daddu   $a2, $zero, $zero\n"
-"/*0x80003EAC*/  nop\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+u32 *recordTable;
+u8 *tableSector;
+u8 *dataSector;
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-".globl fat_80003EB0\n"
-"fat_80003EB0:\n"
-"/*0x80003EB0*/  addiu   $sp, $sp, -0x0040\n"
-"/*0x80003EB4*/  sd      $s0, 0x0020($sp)\n"
-"/*0x80003EB8*/  lui     $s0, %hi(u_80029EE8)\n"
-"/*0x80003EBC*/  addiu   $s0, %lo(u_80029EE8)\n"
-"/*0x80003EC0*/  lw      $v1, 0x0004($s0)\n"
-"/*0x80003EC4*/  sd      $s1, 0x0028($sp)\n"
-"/*0x80003EC8*/  sd      $ra, 0x0038($sp)\n"
-"/*0x80003ECC*/  sd      $s2, 0x0030($sp)\n"
-"/*0x80003ED0*/  daddu   $s1, $a0, $zero\n"
-"/*0x80003ED4*/  beq     $v1, $a0, .L80003F10\n"
-"/*0x80003ED8*/  daddu   $v0, $zero, $zero\n"
-"/*0x80003EDC*/  lbu     $v0, 0x000D($s0)\n"
-"/*0x80003EE0*/  beqz    $v0, .L80003F28\n"
-"/*0x80003EE4*/  lui     $s2, %hi(w_80029320)\n"
-"/*0x80003EE8*/  lw      $a1, %lo(w_80029320)($s2)\n"
-"/*0x80003EEC*/  daddu   $a0, $v1, $zero\n"
-"/*0x80003EF0*/  li      $a2, 0x0001\n"
-"/*0x80003EF4*/  jal     diskWrite\n"
-"/*0x80003EF8*/  sb      $zero, 0x000D($s0)\n"
-"/*0x80003EFC*/  bnez    $v0, .L80003F10\n"
-"/*0x80003F00*/  lui     $v1, 0x0FFFFFFF >> 16\n"
-"/*0x80003F04*/  ori     $v1, 0x0FFFFFFF & 0xFFFF\n"
-"/*0x80003F08*/  bne     $s1, $v1, .L80003F2C\n"
-"/*0x80003F0C*/  lw      $a1, %lo(w_80029320)($s2)\n"
-".L80003F10:\n"
-"/*0x80003F10*/  ld      $ra, 0x0038($sp)\n"
-"/*0x80003F14*/  ld      $s2, 0x0030($sp)\n"
-"/*0x80003F18*/  ld      $s1, 0x0028($sp)\n"
-"/*0x80003F1C*/  ld      $s0, 0x0020($sp)\n"
-"/*0x80003F20*/  jr      $ra\n"
-"/*0x80003F24*/  addiu   $sp, $sp, 0x0040\n"
-".L80003F28:\n"
-"/*0x80003F28*/  lw      $a1, %lo(w_80029320)($s2)\n"
-".L80003F2C:\n"
-"/*0x80003F2C*/  sw      $s1, 0x0004($s0)\n"
-"/*0x80003F30*/  daddu   $a0, $s1, $zero\n"
-"/*0x80003F34*/  ld      $ra, 0x0038($sp)\n"
-"/*0x80003F38*/  ld      $s2, 0x0030($sp)\n"
-"/*0x80003F3C*/  ld      $s1, 0x0028($sp)\n"
-"/*0x80003F40*/  ld      $s0, 0x0020($sp)\n"
-"/*0x80003F44*/  li      $a2, 0x0001\n"
-"/*0x80003F48*/  j       diskReadToRam\n"
-"/*0x80003F4C*/  addiu   $sp, $sp, 0x0040\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+u32 fatClusterToSector(u32 cluster);
+u32 fatSectorToCluster(u32 sector);
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-".globl fat_80003F50\n"
-"fat_80003F50:\n"
-"/*0x80003F50*/  addiu   $sp, $sp, -0x0030\n"
-"/*0x80003F54*/  sd      $s0, 0x0020($sp)\n"
-"/*0x80003F58*/  lui     $s0, %hi(u_80029EE8+72)\n"
-"/*0x80003F5C*/  addiu   $s0, %lo(u_80029EE8+72)\n"
-"/*0x80003F60*/  lw      $v0, 0x000C($s0)\n"
-"/*0x80003F64*/  li      $v1, 0x000F\n"
-"/*0x80003F68*/  andi    $a0, $v0, 0x000F\n"
-"/*0x80003F6C*/  beq     $a0, $v1, .L80003FA0\n"
-"/*0x80003F70*/  sd      $ra, 0x0028($sp)\n"
-"/*0x80003F74*/  lw      $v1, 0x0010($s0)\n"
-"/*0x80003F78*/  addiu   $v0, $v0, 0x0001\n"
-"/*0x80003F7C*/  addiu   $v1, $v1, 0x0020\n"
-"/*0x80003F80*/  sw      $v0, 0x000C($s0)\n"
-"/*0x80003F84*/  sw      $v1, 0x0010($s0)\n"
-"/*0x80003F88*/  daddu   $v0, $zero, $zero\n"
-"/*0x80003F8C*/  ld      $ra, 0x0028($sp)\n"
-".L80003F90:\n"
-"/*0x80003F90*/  ld      $s0, 0x0020($sp)\n"
-"/*0x80003F94*/  jr      $ra\n"
-"/*0x80003F98*/  addiu   $sp, $sp, 0x0030\n"
-"/*0x80003F9C*/  nop\n"
-".L80003FA0:\n"
-"/*0x80003FA0*/  jal     fat_80003C08\n"
-"/*0x80003FA4*/  daddu   $a0, $s0, $zero\n"
-"/*0x80003FA8*/  bnez    $v0, .L80003F90\n"
-"/*0x80003FAC*/  ld      $ra, 0x0028($sp)\n"
-"/*0x80003FB0*/  lw      $v0, 0x0004($s0)\n"
-"/*0x80003FB4*/  lui     $v1, %hi(w_80029320)\n"
-"/*0x80003FB8*/  lw      $v1, %lo(w_80029320)($v1)\n"
-"/*0x80003FBC*/  daddu   $a0, $v0, $zero\n"
-"/*0x80003FC0*/  sll     $v0, $v0, 4\n"
-"/*0x80003FC4*/  sw      $v1, 0x0010($s0)\n"
-"/*0x80003FC8*/  sw      $v0, 0x000C($s0)\n"
-"/*0x80003FCC*/  ld      $ra, 0x0028($sp)\n"
-"/*0x80003FD0*/  ld      $s0, 0x0020($sp)\n"
-"/*0x80003FD4*/  j       fat_80003EB0\n"
-"/*0x80003FD8*/  addiu   $sp, $sp, 0x0030\n"
-"/*0x80003FDC*/  nop\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+static const u8 lfn_char_struct[] = {1, 3, 5, 7, 9, 14, 16, 18, 20, 22, 24, 28, 30};
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-".globl fat_80003FE0\n"
-"fat_80003FE0:\n"
-"/*0x80003FE0*/  addiu   $sp, $sp, -0x0038\n"
-"/*0x80003FE4*/  sd      $s1, 0x0028($sp)\n"
-"/*0x80003FE8*/  daddu   $s1, $a0, $zero\n"
-"/*0x80003FEC*/  lui     $a0, %hi(u_80029EE8+72)\n"
-"/*0x80003FF0*/  sd      $s0, 0x0020($sp)\n"
-"/*0x80003FF4*/  addiu   $s0, $a0, %lo(u_80029EE8+72)\n"
-"/*0x80003FF8*/  daddu   $a0, $s0, $zero\n"
-"/*0x80003FFC*/  sd      $ra, 0x0030($sp)\n"
-"/*0x80004000*/  jal     fat_80003690\n"
-"/*0x80004004*/  srl     $a1, $s1, 4\n"
-"/*0x80004008*/  jal     fat_80003EB0\n"
-"/*0x8000400C*/  lw      $a0, 0x0004($s0)\n"
-"/*0x80004010*/  bnez    $v0, .L80004030\n"
-"/*0x80004014*/  lui     $a0, %hi(w_80029320)\n"
-"/*0x80004018*/  andi    $v1, $s1, 0x000F\n"
-"/*0x8000401C*/  lw      $a0, %lo(w_80029320)($a0)\n"
-"/*0x80004020*/  sll     $v1, $v1, 5\n"
-"/*0x80004024*/  addu    $v1, $a0, $v1\n"
-"/*0x80004028*/  sw      $v1, 0x0010($s0)\n"
-"/*0x8000402C*/  sw      $s1, 0x000C($s0)\n"
-".L80004030:\n"
-"/*0x80004030*/  ld      $ra, 0x0030($sp)\n"
-"/*0x80004034*/  ld      $s1, 0x0028($sp)\n"
-"/*0x80004038*/  ld      $s0, 0x0020($sp)\n"
-"/*0x8000403C*/  jr      $ra\n"
-"/*0x80004040*/  addiu   $sp, $sp, 0x0038\n"
-"/*0x80004044*/  nop\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+/* Set position with cluster */
+void FatSetCluster(FatPos *pos, u32 cluster) {
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-".globl fat_80004048\n"
-"fat_80004048:\n"
-"/*0x80004048*/  addiu   $sp, $sp, -0x0070\n"
-"/*0x8000404C*/  sd      $s4, 0x0040($sp)\n"
-"/*0x80004050*/  sd      $s3, 0x0038($sp)\n"
-"/*0x80004054*/  sd      $s2, 0x0030($sp)\n"
-"/*0x80004058*/  sd      $s0, 0x0020($sp)\n"
-"/*0x8000405C*/  sd      $ra, 0x0068($sp)\n"
-"/*0x80004060*/  sd      $s8, 0x0060($sp)\n"
-"/*0x80004064*/  sd      $s7, 0x0058($sp)\n"
-"/*0x80004068*/  sd      $s6, 0x0050($sp)\n"
-"/*0x8000406C*/  sd      $s5, 0x0048($sp)\n"
-"/*0x80004070*/  sd      $s1, 0x0028($sp)\n"
-"/*0x80004074*/  daddu   $s0, $a1, $zero\n"
-"/*0x80004078*/  daddu   $s2, $a2, $zero\n"
-"/*0x8000407C*/  jal     fat_80003FE0\n"
-"/*0x80004080*/  daddu   $s4, $a0, $zero\n"
-"/*0x80004084*/  bnez    $v0, .L80004278\n"
-"/*0x80004088*/  daddu   $s3, $v0, $zero\n"
-"/*0x8000408C*/  lui     $s7, %hi(u_80029EE8+72)\n"
-"/*0x80004090*/  addiu   $s7, %lo(u_80029EE8+72)\n"
-"/*0x80004094*/  beqz    $s2, .L800042AC\n"
-"/*0x80004098*/  lw      $s1, 0x0010($s7)\n"
-"/*0x8000409C*/  sb      $zero, 0x0000($s2)\n"
-"/*0x800040A0*/  li      $s8, 0x0001\n"
-".L800040A4:\n"
-"/*0x800040A4*/  lbu     $a0, 0x000B($s1)\n"
-"/*0x800040A8*/  li      $v0, 0x000F\n"
-"/*0x800040AC*/  bne     $a0, $v0, .L80004190\n"
-"/*0x800040B0*/  addiu   $v1, $s1, 0x000B\n"
-"/*0x800040B4*/  lbu     $v0, 0x0000($s1)\n"
-"/*0x800040B8*/  li      $v1, 0x00E5\n"
-"/*0x800040BC*/  beq     $v0, $v1, .L8000415C\n"
-"/*0x800040C0*/  lui     $s5, %hi(lfn_char_struct+13)\n"
-"/*0x800040C4*/  addiu   $s5, %lo(lfn_char_struct+13)\n"
-"/*0x800040C8*/  li      $s6, 0x000F\n"
-"/*0x800040CC*/  nop\n"
-".L800040D0:\n"
-"/*0x800040D0*/  beqz    $s8, .L8000412C\n"
-"/*0x800040D4*/  addiu   $a0, $v0, -0x0001\n"
-"/*0x800040D8*/  andi    $a0, $a0, 0x000F\n"
-"/*0x800040DC*/  beq     $a0, $s6, .L800040F4\n"
-"/*0x800040E0*/  li      $v1, 0x00B6\n"
-"/*0x800040E4*/  sll     $v1, $a0, 2\n"
-"/*0x800040E8*/  sll     $a1, $a0, 4\n"
-"/*0x800040EC*/  subu    $v1, $a1, $v1\n"
-"/*0x800040F0*/  addu    $v1, $v1, $a0\n"
-".L800040F4:\n"
-"/*0x800040F4*/  andi    $v0, $v0, 0x0040\n"
-"/*0x800040F8*/  beqz    $v0, .L80004104\n"
-"/*0x800040FC*/  addu    $v1, $s2, $v1\n"
-"/*0x80004100*/  sb      $zero, 0x000D($v1)\n"
-".L80004104:\n"
-"/*0x80004104*/  lui     $v0, %hi(lfn_char_struct)\n"
-"/*0x80004108*/  addiu   $v0, %lo(lfn_char_struct)\n"
-"/*0x8000410C*/  nop\n"
-".L80004110:\n"
-"/*0x80004110*/  lbu     $a0, 0x0000($v0)\n"
-"/*0x80004114*/  addiu   $v0, $v0, 0x0001\n"
-"/*0x80004118*/  addu    $a0, $s1, $a0\n"
-"/*0x8000411C*/  lbu     $a0, 0x0000($a0)\n"
-"/*0x80004120*/  sb      $a0, 0x0000($v1)\n"
-"/*0x80004124*/  bne     $v0, $s5, .L80004110\n"
-"/*0x80004128*/  addiu   $v1, $v1, 0x0001\n"
-".L8000412C:\n"
-"/*0x8000412C*/  jal     fat_80003F50\n"
-"/*0x80004130*/  nop\n"
-"/*0x80004134*/  bnez    $v0, .L80004164\n"
-"/*0x80004138*/  ld      $ra, 0x0068($sp)\n"
-"/*0x8000413C*/  lw      $s1, 0x0010($s7)\n"
-"/*0x80004140*/  lbu     $v0, 0x000B($s1)\n"
-"/*0x80004144*/  bne     $v0, $s6, .L80004190\n"
-"/*0x80004148*/  addiu   $v1, $s1, 0x000B\n"
-"/*0x8000414C*/  lbu     $v0, 0x0000($s1)\n"
-"/*0x80004150*/  li      $v1, 0x00E5\n"
-"/*0x80004154*/  bne     $v0, $v1, .L800040D0\n"
-"/*0x80004158*/  nop\n"
-".L8000415C:\n"
-"/*0x8000415C*/  li      $v0, 0x00FA\n"
-".L80004160:\n"
-"/*0x80004160*/  ld      $ra, 0x0068($sp)\n"
-".L80004164:\n"
-"/*0x80004164*/  ld      $s8, 0x0060($sp)\n"
-"/*0x80004168*/  ld      $s7, 0x0058($sp)\n"
-"/*0x8000416C*/  ld      $s6, 0x0050($sp)\n"
-"/*0x80004170*/  ld      $s5, 0x0048($sp)\n"
-"/*0x80004174*/  ld      $s4, 0x0040($sp)\n"
-"/*0x80004178*/  ld      $s3, 0x0038($sp)\n"
-"/*0x8000417C*/  ld      $s2, 0x0030($sp)\n"
-"/*0x80004180*/  ld      $s1, 0x0028($sp)\n"
-"/*0x80004184*/  ld      $s0, 0x0020($sp)\n"
-"/*0x80004188*/  jr      $ra\n"
-"/*0x8000418C*/  addiu   $sp, $sp, 0x0070\n"
-".L80004190:\n"
-"/*0x80004190*/  lbu     $a0, 0x0000($s1)\n"
-"/*0x80004194*/  li      $v0, 0x00E5\n"
-"/*0x80004198*/  beq     $a0, $v0, .L80004160\n"
-"/*0x8000419C*/  li      $v0, 0x00FA\n"
-"/*0x800041A0*/  beqz    $s0, .L80004234\n"
-"/*0x800041A4*/  addiu   $v0, $s1, 0x001C\n"
-"/*0x800041A8*/  sw      $s4, 0x0000($s0)\n"
-"/*0x800041AC*/  lw      $a0, 0x000C($s7)\n"
-"/*0x800041B0*/  sw      $a0, 0x0004($s0)\n"
-"/*0x800041B4*/  lbu     $v1, 0x0000($v1)\n"
-"/*0x800041B8*/  andi    $v1, $v1, 0x0010\n"
-"/*0x800041BC*/  sh      $v1, 0x0014($s0)\n"
-"/*0x800041C0*/  lbu     $v1, 0x0015($s1)\n"
-"/*0x800041C4*/  lbu     $a0, 0x0014($s1)\n"
-"/*0x800041C8*/  sll     $v1, $v1, 8\n"
-"/*0x800041CC*/  or      $v1, $v1, $a0\n"
-"/*0x800041D0*/  sll     $v1, $v1, 16\n"
-"/*0x800041D4*/  sw      $v1, 0x0008($s0)\n"
-"/*0x800041D8*/  lbu     $a0, 0x001B($s1)\n"
-"/*0x800041DC*/  lbu     $a1, 0x001A($s1)\n"
-"/*0x800041E0*/  sll     $a0, $a0, 8\n"
-"/*0x800041E4*/  or      $a0, $a0, $a1\n"
-"/*0x800041E8*/  or      $v1, $v1, $a0\n"
-"/*0x800041EC*/  sw      $v1, 0x0008($s0)\n"
-"/*0x800041F0*/  lbu     $a1, 0x0001($v0)\n"
-"/*0x800041F4*/  lbu     $v1, 0x0002($v0)\n"
-"/*0x800041F8*/  lbu     $a0, 0x001C($s1)\n"
-"/*0x800041FC*/  lbu     $v0, 0x0003($v0)\n"
-"/*0x80004200*/  sll     $a1, $a1, 8\n"
-"/*0x80004204*/  sll     $v1, $v1, 16\n"
-"/*0x80004208*/  or      $v1, $a1, $v1\n"
-"/*0x8000420C*/  or      $v1, $v1, $a0\n"
-"/*0x80004210*/  sll     $v0, $v0, 24\n"
-"/*0x80004214*/  or      $v0, $v1, $v0\n"
-"/*0x80004218*/  srl     $v1, $v0, 9\n"
-"/*0x8000421C*/  andi    $a0, $v0, 0x01FF\n"
-"/*0x80004220*/  sw      $v0, 0x000C($s0)\n"
-"/*0x80004224*/  beqz    $a0, .L80004234\n"
-"/*0x80004228*/  sw      $v1, 0x0010($s0)\n"
-"/*0x8000422C*/  addiu   $v1, $v1, 0x0001\n"
-"/*0x80004230*/  sw      $v1, 0x0010($s0)\n"
-".L80004234:\n"
-"/*0x80004234*/  beqz    $s8, .L8000427C\n"
-"/*0x80004238*/  ld      $ra, 0x0068($sp)\n"
-"/*0x8000423C*/  lbu     $v0, 0x0000($s2)\n"
-"/*0x80004240*/  bnez    $v0, .L8000427C\n"
-"/*0x80004244*/  li      $a1, 0x0008\n"
-".L80004248:\n"
-"/*0x80004248*/  addu    $v1, $s1, $v0\n"
-"/*0x8000424C*/  lbu     $a0, 0x0000($v1)\n"
-"/*0x80004250*/  addu    $v1, $s2, $v0\n"
-"/*0x80004254*/  addiu   $v0, $v0, 0x0001\n"
-"/*0x80004258*/  bne     $v0, $a1, .L80004248\n"
-"/*0x8000425C*/  sb      $a0, 0x0000($v1)\n"
-"/*0x80004260*/  jal     str_800059D8\n"
-"/*0x80004264*/  addiu   $a0, $s2, 0x0007\n"
-"/*0x80004268*/  lbu     $a0, 0x0008($s1)\n"
-"/*0x8000426C*/  li      $v1, 0x0020\n"
-"/*0x80004270*/  bne     $a0, $v1, .L800042B4\n"
-"/*0x80004274*/  li      $v1, 0x002E\n"
-".L80004278:\n"
-"/*0x80004278*/  ld      $ra, 0x0068($sp)\n"
-".L8000427C:\n"
-"/*0x8000427C*/  daddu   $v0, $s3, $zero\n"
-"/*0x80004280*/  ld      $s8, 0x0060($sp)\n"
-"/*0x80004284*/  ld      $s7, 0x0058($sp)\n"
-"/*0x80004288*/  ld      $s6, 0x0050($sp)\n"
-"/*0x8000428C*/  ld      $s5, 0x0048($sp)\n"
-"/*0x80004290*/  ld      $s4, 0x0040($sp)\n"
-"/*0x80004294*/  ld      $s3, 0x0038($sp)\n"
-"/*0x80004298*/  ld      $s2, 0x0030($sp)\n"
-"/*0x8000429C*/  ld      $s1, 0x0028($sp)\n"
-"/*0x800042A0*/  ld      $s0, 0x0020($sp)\n"
-"/*0x800042A4*/  jr      $ra\n"
-"/*0x800042A8*/  addiu   $sp, $sp, 0x0070\n"
-".L800042AC:\n"
-"/*0x800042AC*/  j       .L800040A4\n"
-"/*0x800042B0*/  daddu   $s8, $zero, $zero\n"
-".L800042B4:\n"
-"/*0x800042B4*/  sb      $v1, 0x0000($v0)\n"
-"/*0x800042B8*/  lbu     $v1, 0x0008($s1)\n"
-"/*0x800042BC*/  addiu   $a0, $v0, 0x0003\n"
-"/*0x800042C0*/  sb      $v1, 0x0001($v0)\n"
-"/*0x800042C4*/  lbu     $v1, 0x0009($s1)\n"
-"/*0x800042C8*/  sb      $v1, 0x0002($v0)\n"
-"/*0x800042CC*/  lbu     $v1, 0x000A($s1)\n"
-"/*0x800042D0*/  jal     str_800059D8\n"
-"/*0x800042D4*/  sb      $v1, 0x0003($v0)\n"
-"/*0x800042D8*/  j       .L80004160\n"
-"/*0x800042DC*/  daddu   $v0, $zero, $zero\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+    pos->cluster = cluster;
+    pos->sector = fatClusterToSector(cluster);
+    pos->in_cluster_ptr = 0;
+}
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-".globl fatOpenFile\n"
-"fatOpenFile:\n"
-"/*0x800042E0*/  addiu   $sp, $sp, -0x0048\n"
-"/*0x800042E4*/  addiu   $a1, $sp, 0x0020\n"
-"/*0x800042E8*/  sd      $ra, 0x0040($sp)\n"
-"/*0x800042EC*/  jal     fat_80004048\n"
-"/*0x800042F0*/  daddu   $a2, $zero, $zero\n"
-"/*0x800042F4*/  bnez    $v0, .L80004308\n"
-"/*0x800042F8*/  lhu     $v1, 0x0034($sp)\n"
-"/*0x800042FC*/  beqz    $v1, .L80004318\n"
-"/*0x80004300*/  lui     $a0, %hi(u_80029EE8+16)\n"
-"/*0x80004304*/  li      $v0, 0x00F5\n"
-".L80004308:\n"
-"/*0x80004308*/  ld      $ra, 0x0040($sp)\n"
-"/*0x8000430C*/  jr      $ra\n"
-"/*0x80004310*/  addiu   $sp, $sp, 0x0048\n"
-"/*0x80004314*/  nop\n"
-".L80004318:\n"
-"/*0x80004318*/  lw      $v1, 0x0028($sp)\n"
-"/*0x8000431C*/  addiu   $a0, %lo(u_80029EE8+16)\n"
-"/*0x80004320*/  lbu     $a3, 0x0012($a0)\n"
-"/*0x80004324*/  addiu   $a1, $v1, -0x0002\n"
-"/*0x80004328*/  mult    $a3, $a1\n"
-"/*0x8000432C*/  lw      $a0, 0x0004($a0)\n"
-"/*0x80004330*/  lui     $a2, %hi(u_80029EE8+96)\n"
-"/*0x80004334*/  addiu   $a1, $a2, %lo(u_80029EE8+96)\n"
-"/*0x80004338*/  lw      $t0, 0x0020($sp)\n"
-"/*0x8000433C*/  sb      $zero, 0x0008($a1)\n"
-"/*0x80004340*/  mflo    $a3\n"
-"/*0x80004344*/  sw      $t0, 0x0010($a1)\n"
-"/*0x80004348*/  addu    $a3, $a3, $a0\n"
-"/*0x8000434C*/  sw      $a3, 0x0004($a1)\n"
-"/*0x80004350*/  lw      $a3, 0x0030($sp)\n"
-"/*0x80004354*/  daddu   $a0, $zero, $zero\n"
-"/*0x80004358*/  sw      $a3, 0x000C($a1)\n"
-"/*0x8000435C*/  sd      $v0, 0x0038($sp)\n"
-"/*0x80004360*/  jal     bios_80000568\n"
-"/*0x80004364*/  sw      $v1, %lo(u_80029EE8+96)($a2)\n"
-"/*0x80004368*/  ld      $ra, 0x0040($sp)\n"
-"/*0x8000436C*/  ld      $v0, 0x0038($sp)\n"
-"/*0x80004370*/  jr      $ra\n"
-"/*0x80004374*/  addiu   $sp, $sp, 0x0048\n"
-"/*0x80004378*/  lw      $a0, 0x0004($a0)\n"
-"/*0x8000437C*/  j       fatOpenFile\n"
-"/*0x80004380*/  andi    $a1, $a1, 0xFFFF\n"
-"/*0x80004384*/  nop\n"
-"/*0x80004388*/  j       fat_80004048\n"
-"/*0x8000438C*/  addiu   $a2, $a1, 0x0018\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+/* Set position with sector */
+void FatSetSector(FatPos *pos, u32 sector) {
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-".globl fat_80004390\n"
-"fat_80004390:\n"
-"/*0x80004390*/  addiu   $sp, $sp, -0x0050\n"
-"/*0x80004394*/  sd      $s1, 0x0040($sp)\n"
-"/*0x80004398*/  lui     $s1, %hi(u_80029EE8+40)\n"
-"/*0x8000439C*/  sd      $s0, 0x0038($sp)\n"
-"/*0x800043A0*/  sltiu   $v1, $a0, 0x0003\n"
-"/*0x800043A4*/  addiu   $s0, $s1, %lo(u_80029EE8+40)\n"
-"/*0x800043A8*/  sd      $ra, 0x0048($sp)\n"
-"/*0x800043AC*/  sh      $zero, 0x0018($s0)\n"
-"/*0x800043B0*/  sw      $a0, 0x000C($s0)\n"
-"/*0x800043B4*/  beqz    $v1, .L80004410\n"
-"/*0x800043B8*/  sb      $zero, 0x001A($s0)\n"
-".L800043BC:\n"
-"/*0x800043BC*/  lui     $v1, %hi(u_80029EE8+16)\n"
-"/*0x800043C0*/  sw      $zero, 0x0010($s0)\n"
-"/*0x800043C4*/  addiu   $v1, %lo(u_80029EE8+16)\n"
-"/*0x800043C8*/  daddu   $a1, $zero, $zero\n"
-"/*0x800043CC*/  li      $v0, 0x0002\n"
-"/*0x800043D0*/  lw      $a0, 0x0004($v1)\n"
-".L800043D4:\n"
-"/*0x800043D4*/  sw      $v0, %lo(u_80029EE8+40)($s1)\n"
-"/*0x800043D8*/  addu    $v1, $a1, $a0\n"
-"/*0x800043DC*/  sll     $v0, $v1, 4\n"
-"/*0x800043E0*/  ori     $a0, $v0, 0x0001\n"
-"/*0x800043E4*/  sw      $v0, 0x0014($s0)\n"
-"/*0x800043E8*/  sw      $a0, 0x0010($s0)\n"
-"/*0x800043EC*/  sw      $v1, 0x0004($s0)\n"
-"/*0x800043F0*/  sb      $zero, 0x0008($s0)\n"
-"/*0x800043F4*/  daddu   $v0, $zero, $zero\n"
-".L800043F8:\n"
-"/*0x800043F8*/  ld      $ra, 0x0048($sp)\n"
-"/*0x800043FC*/  ld      $s1, 0x0040($sp)\n"
-"/*0x80004400*/  ld      $s0, 0x0038($sp)\n"
-"/*0x80004404*/  jr      $ra\n"
-"/*0x80004408*/  addiu   $sp, $sp, 0x0050\n"
-"/*0x8000440C*/  nop\n"
-".L80004410:\n"
-"/*0x80004410*/  addiu   $a1, $sp, 0x0020\n"
-"/*0x80004414*/  jal     fat_80004048\n"
-"/*0x80004418*/  daddu   $a2, $zero, $zero\n"
-"/*0x8000441C*/  bnez    $v0, .L800043F8\n"
-"/*0x80004420*/  lhu     $v1, 0x0034($sp)\n"
-"/*0x80004424*/  beqz    $v1, .L800043F8\n"
-"/*0x80004428*/  li      $v0, 0x00F6\n"
-"/*0x8000442C*/  lw      $v0, 0x0028($sp)\n"
-"/*0x80004430*/  sltiu   $v1, $v0, 0x0003\n"
-"/*0x80004434*/  bnez    $v1, .L800043BC\n"
-"/*0x80004438*/  lui     $v1, %hi(u_80029EE8+16)\n"
-"/*0x8000443C*/  addiu   $v1, %lo(u_80029EE8+16)\n"
-"/*0x80004440*/  lbu     $a1, 0x0012($v1)\n"
-"/*0x80004444*/  addiu   $a0, $v0, -0x0002\n"
-"/*0x80004448*/  mult    $a1, $a0\n"
-"/*0x8000444C*/  mflo    $a1\n"
-"/*0x80004450*/  j       .L800043D4\n"
-"/*0x80004454*/  lw      $a0, 0x0004($v1)\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+    pos->cluster = fatSectorToCluster(sector);
+    pos->sector = sector;
+    pos->in_cluster_ptr = sector - fatClusterToSector(pos->cluster);
+}
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-".globl fat_80004458\n"
-"fat_80004458:\n"
-"/*0x80004458*/  addiu   $sp, $sp, -0x0070\n"
-"/*0x8000445C*/  sd      $ra, 0x0068($sp)\n"
-"/*0x80004460*/  sd      $s8, 0x0060($sp)\n"
-"/*0x80004464*/  sd      $s7, 0x0058($sp)\n"
-"/*0x80004468*/  sd      $s6, 0x0050($sp)\n"
-"/*0x8000446C*/  sd      $s5, 0x0048($sp)\n"
-"/*0x80004470*/  sd      $s4, 0x0040($sp)\n"
-"/*0x80004474*/  sd      $s3, 0x0038($sp)\n"
-"/*0x80004478*/  sd      $s2, 0x0030($sp)\n"
-"/*0x8000447C*/  sd      $s1, 0x0028($sp)\n"
-"/*0x80004480*/  jal     fat_80004390\n"
-"/*0x80004484*/  sd      $s0, 0x0020($sp)\n"
-"/*0x80004488*/  bnez    $v0, .L80004568\n"
-"/*0x8000448C*/  lui     $s3, %hi(u_80029EE8+40)\n"
-"/*0x80004490*/  addiu   $s3, %lo(u_80029EE8+40)\n"
-"/*0x80004494*/  lw      $a0, 0x0004($s3)\n"
-"/*0x80004498*/  daddu   $s0, $zero, $zero\n"
-"/*0x8000449C*/  sll     $s6, $a0, 4\n"
-"/*0x800044A0*/  li      $s1, 0x00E5\n"
-"/*0x800044A4*/  li      $s4, 0x002E\n"
-"/*0x800044A8*/  li      $s5, 0x000F\n"
-"/*0x800044AC*/  li      $s7, 0x0400\n"
-"/*0x800044B0*/  li      $s8, 0x0040\n"
-"/*0x800044B4*/  li      $s2, 0x0010\n"
-".L800044B8:\n"
-"/*0x800044B8*/  jal     fat_80003EB0\n"
-"/*0x800044BC*/  nop\n"
-"/*0x800044C0*/  bnez    $v0, .L8000456C\n"
-"/*0x800044C4*/  ld      $ra, 0x0068($sp)\n"
-"/*0x800044C8*/  lui     $v0, %hi(w_80029320)\n"
-"/*0x800044CC*/  lw      $a0, %lo(w_80029320)($v0)\n"
-"/*0x800044D0*/  lui     $v1, %hi(w_80029318)\n"
-"/*0x800044D4*/  lw      $a3, %lo(w_80029318)($v1)\n"
-"/*0x800044D8*/  lbu     $v1, 0x0000($a0)\n"
-"/*0x800044DC*/  daddu   $v0, $zero, $zero\n"
-"/*0x800044E0*/  beqz    $v1, .L8000455C\n"
-"/*0x800044E4*/  andi    $a2, $v0, 0x00FF\n"
-".L800044E8:\n"
-"/*0x800044E8*/  beql    $v1, $s1, .L80004540\n"
-"/*0x800044EC*/  daddu   $s0, $zero, $zero\n"
-"/*0x800044F0*/  beql    $v1, $s4, .L80004540\n"
-"/*0x800044F4*/  daddu   $s0, $zero, $zero\n"
-"/*0x800044F8*/  lbu     $a1, 0x000B($a0)\n"
-"/*0x800044FC*/  beq     $a1, $s5, .L80004598\n"
-"/*0x80004500*/  andi    $a1, $a1, 0x000A\n"
-"/*0x80004504*/  bnezl   $a1, .L80004540\n"
-"/*0x80004508*/  daddu   $s0, $zero, $zero\n"
-"/*0x8000450C*/  bnezl   $s0, .L8000452C\n"
-"/*0x80004510*/  lhu     $v1, 0x0018($s3)\n"
-"/*0x80004514*/  lhu     $v1, 0x0018($s3)\n"
-"/*0x80004518*/  or      $a1, $s6, $v0\n"
-"/*0x8000451C*/  sll     $v1, $v1, 2\n"
-"/*0x80004520*/  addu    $v1, $a3, $v1\n"
-"/*0x80004524*/  sw      $a1, 0x0000($v1)\n"
-"/*0x80004528*/  lhu     $v1, 0x0018($s3)\n"
-".L8000452C:\n"
-"/*0x8000452C*/  addiu   $v1, $v1, 0x0001\n"
-"/*0x80004530*/  andi    $v1, $v1, 0xFFFF\n"
-"/*0x80004534*/  beq     $v1, $s7, .L80004630\n"
-"/*0x80004538*/  sh      $v1, 0x0018($s3)\n"
-"/*0x8000453C*/  daddu   $s0, $zero, $zero\n"
-".L80004540:\n"
-"/*0x80004540*/  addiu   $v0, $v0, 0x0001\n"
-".L80004544:\n"
-"/*0x80004544*/  beql    $v0, $s2, .L800045C8\n"
-"/*0x80004548*/  lbu     $v0, 0x0008($s3)\n"
-".L8000454C:\n"
-"/*0x8000454C*/  addiu   $a0, $a0, 0x0020\n"
-"/*0x80004550*/  lbu     $v1, 0x0000($a0)\n"
-"/*0x80004554*/  bnez    $v1, .L800044E8\n"
-"/*0x80004558*/  andi    $a2, $v0, 0x00FF\n"
-".L8000455C:\n"
-"/*0x8000455C*/  or      $s6, $a2, $s6\n"
-"/*0x80004560*/  sw      $s6, 0x0014($s3)\n"
-"/*0x80004564*/  daddu   $v0, $zero, $zero\n"
-".L80004568:\n"
-"/*0x80004568*/  ld      $ra, 0x0068($sp)\n"
-".L8000456C:\n"
-"/*0x8000456C*/  ld      $s8, 0x0060($sp)\n"
-"/*0x80004570*/  ld      $s7, 0x0058($sp)\n"
-"/*0x80004574*/  ld      $s6, 0x0050($sp)\n"
-"/*0x80004578*/  ld      $s5, 0x0048($sp)\n"
-"/*0x8000457C*/  ld      $s4, 0x0040($sp)\n"
-"/*0x80004580*/  ld      $s3, 0x0038($sp)\n"
-"/*0x80004584*/  ld      $s2, 0x0030($sp)\n"
-"/*0x80004588*/  ld      $s1, 0x0028($sp)\n"
-"/*0x8000458C*/  ld      $s0, 0x0020($sp)\n"
-"/*0x80004590*/  jr      $ra\n"
-"/*0x80004594*/  addiu   $sp, $sp, 0x0070\n"
-".L80004598:\n"
-"/*0x80004598*/  andi    $v1, $v1, 0x00F0\n"
-"/*0x8000459C*/  bnel    $v1, $s8, .L80004544\n"
-"/*0x800045A0*/  addiu   $v0, $v0, 0x0001\n"
-"/*0x800045A4*/  lhu     $v1, 0x0018($s3)\n"
-"/*0x800045A8*/  or      $a1, $s6, $v0\n"
-"/*0x800045AC*/  sll     $v1, $v1, 2\n"
-"/*0x800045B0*/  addu    $v1, $a3, $v1\n"
-"/*0x800045B4*/  addiu   $v0, $v0, 0x0001\n"
-"/*0x800045B8*/  sw      $a1, 0x0000($v1)\n"
-"/*0x800045BC*/  bne     $v0, $s2, .L8000454C\n"
-"/*0x800045C0*/  li      $s0, 0x0001\n"
-"/*0x800045C4*/  lbu     $v0, 0x0008($s3)\n"
-".L800045C8:\n"
-"/*0x800045C8*/  lui     $a1, %hi(u_80029EE8+16)\n"
-"/*0x800045CC*/  lw      $a0, 0x0004($s3)\n"
-"/*0x800045D0*/  addiu   $a1, %lo(u_80029EE8+16)\n"
-"/*0x800045D4*/  addiu   $v0, $v0, 0x0001\n"
-"/*0x800045D8*/  lbu     $v1, 0x0012($a1)\n"
-"/*0x800045DC*/  andi    $v0, $v0, 0x00FF\n"
-"/*0x800045E0*/  addiu   $a0, $a0, 0x0001\n"
-"/*0x800045E4*/  sw      $a0, 0x0004($s3)\n"
-"/*0x800045E8*/  sb      $v0, 0x0008($s3)\n"
-"/*0x800045EC*/  beq     $v1, $v0, .L800045FC\n"
-"/*0x800045F0*/  addiu   $s6, $s6, 0x0010\n"
-"/*0x800045F4*/  j       .L800044B8\n"
-"/*0x800045F8*/  lw      $a0, 0x0004($s3)\n"
-".L800045FC:\n"
-"/*0x800045FC*/  lui     $a0, %hi(u_80029EE8+40)\n"
-"/*0x80004600*/  jal     fat_800039F0\n"
-"/*0x80004604*/  addiu   $a0, %lo(u_80029EE8+40)\n"
-"/*0x80004608*/  li      $v1, 0x00F3\n"
-"/*0x8000460C*/  beq     $v0, $v1, .L80004648\n"
-"/*0x80004610*/  lui     $v1, %hi(u_80029EE8+40)\n"
-"/*0x80004614*/  bnez    $v0, .L80004568\n"
-"/*0x80004618*/  lui     $a1, %hi(u_80029EE8+40)\n"
-"/*0x8000461C*/  addiu   $a1, %lo(u_80029EE8+40)\n"
-"/*0x80004620*/  lw      $s6, 0x0004($a1)\n"
-"/*0x80004624*/  lw      $a0, 0x0004($s3)\n"
-"/*0x80004628*/  j       .L800044B8\n"
-"/*0x8000462C*/  sll     $s6, $s6, 4\n"
-".L80004630:\n"
-"/*0x80004630*/  lui     $a1, %hi(u_80029EE8+40)\n"
-"/*0x80004634*/  or      $a2, $a2, $s6\n"
-"/*0x80004638*/  addiu   $a1, %lo(u_80029EE8+40)\n"
-"/*0x8000463C*/  sw      $a2, 0x0014($a1)\n"
-"/*0x80004640*/  j       .L80004568\n"
-"/*0x80004644*/  daddu   $v0, $zero, $zero\n"
-".L80004648:\n"
-"/*0x80004648*/  li      $v0, 0x0001\n"
-"/*0x8000464C*/  addiu   $v1, %lo(u_80029EE8+40)\n"
-"/*0x80004650*/  sb      $v0, 0x001A($v1)\n"
-"/*0x80004654*/  j       .L80004568\n"
-"/*0x80004658*/  daddu   $v0, $zero, $zero\n"
-"/*0x8000465C*/  nop\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+/* Find the first sector of this cluster */
+u32 fatClusterToSector(u32 cluster) {
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-".globl fatFindRecord\n"
-"fatFindRecord:\n"
-"/*0x80004660*/  addiu   $sp, $sp, -0x0150\n"
-"/*0x80004664*/  sd      $s4, 0x0120($sp)\n"
-"/*0x80004668*/  sd      $s2, 0x0110($sp)\n"
-"/*0x8000466C*/  sd      $ra, 0x0148($sp)\n"
-"/*0x80004670*/  sd      $s8, 0x0140($sp)\n"
-"/*0x80004674*/  sd      $s7, 0x0138($sp)\n"
-"/*0x80004678*/  sd      $s6, 0x0130($sp)\n"
-"/*0x8000467C*/  sd      $s5, 0x0128($sp)\n"
-"/*0x80004680*/  sd      $s3, 0x0118($sp)\n"
-"/*0x80004684*/  sd      $s1, 0x0108($sp)\n"
-"/*0x80004688*/  sd      $s0, 0x0100($sp)\n"
-"/*0x8000468C*/  lbu     $v0, 0x0000($a0)\n"
-"/*0x80004690*/  daddu   $s4, $a0, $zero\n"
-"/*0x80004694*/  sw      $a1, 0x0158($sp)\n"
-"/*0x80004698*/  beqz    $v0, .L800047E8\n"
-"/*0x8000469C*/  li      $s2, 0x00FB\n"
-"/*0x800046A0*/  lw      $v0, 0x0158($sp)\n"
-"/*0x800046A4*/  lui     $s7, %hi(u_80029EE8+40)\n"
-"/*0x800046A8*/  sw      $zero, 0x0000($v0)\n"
-"/*0x800046AC*/  lbu     $v1, 0x0000($a0)\n"
-"/*0x800046B0*/  li      $v0, 0x002F\n"
-"/*0x800046B4*/  addiu   $s7, %lo(u_80029EE8+40)\n"
-"/*0x800046B8*/  daddu   $a0, $zero, $zero\n"
-"/*0x800046BC*/  addiu   $s5, $sp, 0x0038\n"
-"/*0x800046C0*/  beq     $v1, $v0, .L800047C0\n"
-"/*0x800046C4*/  addiu   $s6, $sp, 0x0020\n"
-"/*0x800046C8*/  daddu   $s1, $zero, $zero\n"
-".L800046CC:\n"
-"/*0x800046CC*/  bnez    $v1, .L800046E8\n"
-"/*0x800046D0*/  daddu   $s3, $s4, $zero\n"
-"/*0x800046D4*/  j       .L80004700\n"
-"/*0x800046D8*/  nop\n"
-"/*0x800046DC*/  nop\n"
-".L800046E0:\n"
-"/*0x800046E0*/  beq     $v0, $v1, .L80004700\n"
-"/*0x800046E4*/  nop\n"
-".L800046E8:\n"
-"/*0x800046E8*/  addiu   $s1, $s1, 0x0001\n"
-"/*0x800046EC*/  andi    $s1, $s1, 0x00FF\n"
-"/*0x800046F0*/  addu    $s3, $s4, $s1\n"
-"/*0x800046F4*/  lbu     $v0, 0x0000($s3)\n"
-"/*0x800046F8*/  bnez    $v0, .L800046E0\n"
-"/*0x800046FC*/  li      $v1, 0x002F\n"
-".L80004700:\n"
-"/*0x80004700*/  jal     fat_80004458\n"
-"/*0x80004704*/  nop\n"
-"/*0x80004708*/  bnez    $v0, .L800047E8\n"
-"/*0x8000470C*/  daddu   $s2, $v0, $zero\n"
-"/*0x80004710*/  lhu     $v0, 0x0018($s7)\n"
-"/*0x80004714*/  beqz    $v0, .L800047D4\n"
-"/*0x80004718*/  daddu   $s0, $zero, $zero\n"
-"/*0x8000471C*/  j       .L8000473C\n"
-"/*0x80004720*/  addu    $s8, $s6, $s1\n"
-"/*0x80004724*/  nop\n"
-".L80004728:\n"
-"/*0x80004728*/  lhu     $v0, 0x0018($s7)\n"
-"/*0x8000472C*/  andi    $s0, $s0, 0xFFFF\n"
-"/*0x80004730*/  sltu    $v1, $s0, $v0\n"
-"/*0x80004734*/  beqzl   $v1, .L800047A4\n"
-"/*0x80004738*/  lbu     $v1, 0x0000($s3)\n"
-".L8000473C:\n"
-"/*0x8000473C*/  lui     $v0, %hi(w_80029318)\n"
-"/*0x80004740*/  lw      $v1, %lo(w_80029318)($v0)\n"
-"/*0x80004744*/  sll     $v0, $s0, 2\n"
-"/*0x80004748*/  addu    $v0, $v1, $v0\n"
-"/*0x8000474C*/  lw      $a0, 0x0000($v0)\n"
-"/*0x80004750*/  daddu   $a1, $s6, $zero\n"
-"/*0x80004754*/  jal     fat_80004048\n"
-"/*0x80004758*/  daddu   $a2, $s5, $zero\n"
-"/*0x8000475C*/  bnez    $v0, .L800047E8\n"
-"/*0x80004760*/  daddu   $s2, $v0, $zero\n"
-"/*0x80004764*/  lbu     $v0, 0x0018($s8)\n"
-"/*0x80004768*/  bnezl   $v0, .L80004728\n"
-"/*0x8000476C*/  addiu   $s0, $s0, 0x0001\n"
-"/*0x80004770*/  daddu   $a0, $s4, $zero\n"
-"/*0x80004774*/  daddu   $a1, $s5, $zero\n"
-"/*0x80004778*/  jal     streql\n"
-"/*0x8000477C*/  daddu   $a2, $s1, $zero\n"
-"/*0x80004780*/  beqzl   $v0, .L80004728\n"
-"/*0x80004784*/  addiu   $s0, $s0, 0x0001\n"
-"/*0x80004788*/  lw      $v1, 0x0158($sp)\n"
-"/*0x8000478C*/  lw      $v0, 0x0020($sp)\n"
-"/*0x80004790*/  sw      $v0, 0x0000($v1)\n"
-"/*0x80004794*/  lbu     $v1, 0x0000($s3)\n"
-"/*0x80004798*/  beqz    $v1, .L800047EC\n"
-"/*0x8000479C*/  ld      $ra, 0x0148($sp)\n"
-"/*0x800047A0*/  lhu     $v0, 0x0018($s7)\n"
-".L800047A4:\n"
-"/*0x800047A4*/  beq     $v0, $s0, .L800047D8\n"
-"/*0x800047A8*/  lw      $v0, 0x0158($sp)\n"
-"/*0x800047AC*/  daddu   $s4, $s3, $zero\n"
-"/*0x800047B0*/  lw      $a0, 0x0000($v0)\n"
-".L800047B4:\n"
-"/*0x800047B4*/  li      $v0, 0x002F\n"
-"/*0x800047B8*/  bnel    $v1, $v0, .L800046CC\n"
-"/*0x800047BC*/  daddu   $s1, $zero, $zero\n"
-".L800047C0:\n"
-"/*0x800047C0*/  lw      $v0, 0x0158($sp)\n"
-"/*0x800047C4*/  addiu   $s4, $s4, 0x0001\n"
-"/*0x800047C8*/  lbu     $v1, 0x0000($s4)\n"
-"/*0x800047CC*/  j       .L800047B4\n"
-"/*0x800047D0*/  lw      $a0, 0x0000($v0)\n"
-".L800047D4:\n"
-"/*0x800047D4*/  lbu     $v1, 0x0000($s3)\n"
-".L800047D8:\n"
-"/*0x800047D8*/  beqz    $v1, .L800047E8\n"
-"/*0x800047DC*/  li      $s2, 0x00F0\n"
-"/*0x800047E0*/  li      $s2, 0x00F7\n"
-"/*0x800047E4*/  nop\n"
-".L800047E8:\n"
-"/*0x800047E8*/  ld      $ra, 0x0148($sp)\n"
-".L800047EC:\n"
-"/*0x800047EC*/  daddu   $v0, $s2, $zero\n"
-"/*0x800047F0*/  ld      $s8, 0x0140($sp)\n"
-"/*0x800047F4*/  ld      $s7, 0x0138($sp)\n"
-"/*0x800047F8*/  ld      $s6, 0x0130($sp)\n"
-"/*0x800047FC*/  ld      $s5, 0x0128($sp)\n"
-"/*0x80004800*/  ld      $s4, 0x0120($sp)\n"
-"/*0x80004804*/  ld      $s3, 0x0118($sp)\n"
-"/*0x80004808*/  ld      $s2, 0x0110($sp)\n"
-"/*0x8000480C*/  ld      $s1, 0x0108($sp)\n"
-"/*0x80004810*/  ld      $s0, 0x0100($sp)\n"
-"/*0x80004814*/  jr      $ra\n"
-"/*0x80004818*/  addiu   $sp, $sp, 0x0150\n"
-"/*0x8000481C*/  nop\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+    return (cluster - 2) * current_fat.cluster_size + current_fat.data_entry;
+}
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-".globl fatOpenFileByeName\n"
-"fatOpenFileByeName:\n"
-"/*0x80004820*/  addiu   $sp, $sp, -0x0038\n"
-"/*0x80004824*/  sd      $s0, 0x0028($sp)\n"
-"/*0x80004828*/  sd      $ra, 0x0030($sp)\n"
-"/*0x8000482C*/  lbu     $v0, 0x0000($a0)\n"
-"/*0x80004830*/  andi    $s0, $a1, 0xFFFF\n"
-"/*0x80004834*/  xori    $v0, $v0, 0x002F\n"
-"/*0x80004838*/  sltiu   $v0, $v0, 0x0001\n"
-"/*0x8000483C*/  addu    $a0, $a0, $v0\n"
-"/*0x80004840*/  jal     fatFindRecord\n"
-"/*0x80004844*/  addiu   $a1, $sp, 0x0020\n"
-"/*0x80004848*/  bnez    $v0, .L80004860\n"
-"/*0x8000484C*/  ld      $ra, 0x0030($sp)\n"
-"/*0x80004850*/  lw      $a0, 0x0020($sp)\n"
-"/*0x80004854*/  jal     fatOpenFile\n"
-"/*0x80004858*/  daddu   $a1, $s0, $zero\n"
-"/*0x8000485C*/  ld      $ra, 0x0030($sp)\n"
-".L80004860:\n"
-"/*0x80004860*/  ld      $s0, 0x0028($sp)\n"
-"/*0x80004864*/  jr      $ra\n"
-"/*0x80004868*/  addiu   $sp, $sp, 0x0038\n"
-"/*0x8000486C*/  nop\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+/* Find the cluster that contains this sector */
+u32 fatSectorToCluster(u32 sector) {
 
-asm(
-".text\n"
-".set noreorder\n"
-".set noat\n"
-"\n"
-".balign 8\n"
-".globl fatInit\n"
-"fatInit:\n"
-"/*0x80004870*/  addiu   $sp, $sp, -0x0038\n"
-"/*0x80004874*/  addiu   $t0, $a0, 0x0200\n"
-"/*0x80004878*/  sd      $s1, 0x0028($sp)\n"
-"/*0x8000487C*/  lui     $v1, %hi(w_8002931C)\n"
-"/*0x80004880*/  lui     $s1, %hi(u_80029EE8)\n"
-"/*0x80004884*/  daddu   $v0, $a0, $zero\n"
-"/*0x80004888*/  addiu   $a3, $a0, 0x0400\n"
-"/*0x8000488C*/  sw      $t0, %lo(w_8002931C)($v1)\n"
-"/*0x80004890*/  addiu   $a0, $s1, %lo(u_80029EE8)\n"
-"/*0x80004894*/  lui     $v1, %hi(w_80029318)\n"
-"/*0x80004898*/  sd      $s0, 0x0020($sp)\n"
-"/*0x8000489C*/  li      $a1, 0x00FF\n"
-"/*0x800048A0*/  li      $a2, 0x0010\n"
-"/*0x800048A4*/  lui     $s0, %hi(w_80029320)\n"
-"/*0x800048A8*/  sw      $a3, %lo(w_80029318)($v1)\n"
-"/*0x800048AC*/  addiu   $s1, %lo(u_80029EE8)\n"
-"/*0x800048B0*/  sd      $ra, 0x0030($sp)\n"
-"/*0x800048B4*/  jal     memfill\n"
-"/*0x800048B8*/  sw      $v0, %lo(w_80029320)($s0)\n"
-"/*0x800048BC*/  lui     $v1, 0x0FFFFFFF >> 16\n"
-"/*0x800048C0*/  ori     $v1, 0x0FFFFFFF & 0xFFFF\n"
-"/*0x800048C4*/  lui     $v0, %hi(u_80029EE8+52)\n"
-"/*0x800048C8*/  daddu   $a0, $zero, $zero\n"
-"/*0x800048CC*/  sb      $zero, 0x000D($s1)\n"
-"/*0x800048D0*/  sw      $zero, 0x0008($s1)\n"
-"/*0x800048D4*/  sb      $zero, 0x000C($s1)\n"
-"/*0x800048D8*/  jal     fat_80003EB0\n"
-"/*0x800048DC*/  sw      $v1, %lo(u_80029EE8+52)($v0)\n"
-"/*0x800048E0*/  daddu   $v1, $v0, $zero\n"
-"/*0x800048E4*/  bnez    $v1, .L80004908\n"
-"/*0x800048E8*/  ld      $ra, 0x0030($sp)\n"
-"/*0x800048EC*/  lw      $a0, %lo(w_80029320)($s0)\n"
-"/*0x800048F0*/  li      $v0, 0x0055\n"
-"/*0x800048F4*/  lbu     $v1, 0x01FE($a0)\n"
-"/*0x800048F8*/  beql    $v1, $v0, .L80004918\n"
-"/*0x800048FC*/  lbu     $v1, 0x01FF($a0)\n"
-"/*0x80004900*/  li      $v0, 0x00F8\n"
-".L80004904:\n"
-"/*0x80004904*/  ld      $ra, 0x0030($sp)\n"
-".L80004908:\n"
-"/*0x80004908*/  ld      $s1, 0x0028($sp)\n"
-"/*0x8000490C*/  ld      $s0, 0x0020($sp)\n"
-"/*0x80004910*/  jr      $ra\n"
-"/*0x80004914*/  addiu   $sp, $sp, 0x0038\n"
-".L80004918:\n"
-"/*0x80004918*/  li      $v0, 0x00AA\n"
-"/*0x8000491C*/  bne     $v1, $v0, .L80004904\n"
-"/*0x80004920*/  li      $v0, 0x00F8\n"
-"/*0x80004924*/  lbu     $v1, 0x0000($a0)\n"
-"/*0x80004928*/  li      $v0, 0x00EB\n"
-"/*0x8000492C*/  beql    $v1, $v0, .L80004A68\n"
-"/*0x80004930*/  lbu     $v1, 0x0002($a0)\n"
-".L80004934:\n"
-"/*0x80004934*/  lbu     $v0, 0x01C2($a0)\n"
-"/*0x80004938*/  addiu   $v0, $v0, -0x000B\n"
-"/*0x8000493C*/  andi    $v0, $v0, 0x00FF\n"
-"/*0x80004940*/  sltiu   $v0, $v0, 0x0002\n"
-"/*0x80004944*/  beqz    $v0, .L80004904\n"
-"/*0x80004948*/  li      $v0, 0x00F8\n"
-"/*0x8000494C*/  addiu   $v0, $a0, 0x01C6\n"
-"/*0x80004950*/  lbu     $s1, 0x0001($v0)\n"
-"/*0x80004954*/  lbu     $a1, 0x0002($v0)\n"
-"/*0x80004958*/  lbu     $v1, 0x01C6($a0)\n"
-"/*0x8000495C*/  sll     $s1, $s1, 8\n"
-"/*0x80004960*/  sll     $a1, $a1, 16\n"
-"/*0x80004964*/  lbu     $v0, 0x0003($v0)\n"
-"/*0x80004968*/  or      $s1, $s1, $a1\n"
-"/*0x8000496C*/  or      $s1, $s1, $v1\n"
-"/*0x80004970*/  sll     $v0, $v0, 24\n"
-"/*0x80004974*/  or      $s1, $s1, $v0\n"
-"/*0x80004978*/  jal     fat_80003EB0\n"
-"/*0x8000497C*/  daddu   $a0, $s1, $zero\n"
-"/*0x80004980*/  bnez    $v0, .L80004908\n"
-"/*0x80004984*/  ld      $ra, 0x0030($sp)\n"
-"/*0x80004988*/  lw      $a0, %lo(w_80029320)($s0)\n"
-"/*0x8000498C*/  lbu     $v0, 0x0016($a0)\n"
-".L80004990:\n"
-"/*0x80004990*/  bnez    $v0, .L80004904\n"
-"/*0x80004994*/  li      $v0, 0x00F8\n"
-"/*0x80004998*/  lui     $a1, %hi(u_800287D0)\n"
-"/*0x8000499C*/  addiu   $a0, $a0, 0x0052\n"
-"/*0x800049A0*/  addiu   $a1, %lo(u_800287D0)\n"
-"/*0x800049A4*/  jal     str_80005360\n"
-"/*0x800049A8*/  li      $a2, 0x0003\n"
-"/*0x800049AC*/  beqzl   $v0, .L80004A7C\n"
-"/*0x800049B0*/  lw      $a0, %lo(w_80029320)($s0)\n"
-"/*0x800049B4*/  lw      $v0, %lo(w_80029320)($s0)\n"
-".L800049B8:\n"
-"/*0x800049B8*/  li      $a1, 0x0400\n"
-"/*0x800049BC*/  lbu     $v1, 0x000D($v0)\n"
-"/*0x800049C0*/  lui     $a0, %hi(u_80029EE8+16)\n"
-"/*0x800049C4*/  div     $zero, $a1, $v1\n"
-"/*0x800049C8*/  teq     $v1, $zero, 7\n"
-"/*0x800049CC*/  addiu   $a2, $a0, %lo(u_80029EE8+16)\n"
-"/*0x800049D0*/  sb      $v1, 0x0012($a2)\n"
-"/*0x800049D4*/  addiu   $v1, $v0, 0x0020\n"
-"/*0x800049D8*/  lbu     $t0, 0x0001($v1)\n"
-"/*0x800049DC*/  lbu     $a1, 0x0002($v1)\n"
-"/*0x800049E0*/  lbu     $a3, 0x0020($v0)\n"
-"/*0x800049E4*/  lbu     $v1, 0x0003($v1)\n"
-"/*0x800049E8*/  sll     $t0, $t0, 8\n"
-"/*0x800049EC*/  sll     $a1, $a1, 16\n"
-"/*0x800049F0*/  or      $a1, $t0, $a1\n"
-"/*0x800049F4*/  or      $a1, $a1, $a3\n"
-"/*0x800049F8*/  sll     $v1, $v1, 24\n"
-"/*0x800049FC*/  or      $v1, $a1, $v1\n"
-"/*0x80004A00*/  lbu     $t0, 0x000F($v0)\n"
-"/*0x80004A04*/  lbu     $a1, 0x000E($v0)\n"
-"/*0x80004A08*/  sw      $v1, 0x000C($a2)\n"
-"/*0x80004A0C*/  addiu   $v1, $v0, 0x0024\n"
-"/*0x80004A10*/  lbu     $a3, 0x0001($v1)\n"
-"/*0x80004A14*/  lbu     $t2, 0x0002($v1)\n"
-"/*0x80004A18*/  lbu     $t1, 0x0024($v0)\n"
-"/*0x80004A1C*/  sll     $a3, $a3, 8\n"
-"/*0x80004A20*/  lbu     $v0, 0x0003($v1)\n"
-"/*0x80004A24*/  sll     $v1, $t2, 16\n"
-"/*0x80004A28*/  or      $a3, $a3, $v1\n"
-"/*0x80004A2C*/  or      $a3, $a3, $t1\n"
-"/*0x80004A30*/  sll     $v1, $t0, 8\n"
-"/*0x80004A34*/  sll     $v0, $v0, 24\n"
-"/*0x80004A38*/  or      $v0, $a3, $v0\n"
-"/*0x80004A3C*/  or      $v1, $v1, $a1\n"
-"/*0x80004A40*/  addu    $s1, $s1, $v1\n"
-"/*0x80004A44*/  sll     $v1, $v0, 1\n"
-"/*0x80004A48*/  addu    $v1, $s1, $v1\n"
-"/*0x80004A4C*/  sw      $v1, 0x0004($a2)\n"
-"/*0x80004A50*/  sw      $v0, 0x0008($a2)\n"
-"/*0x80004A54*/  sw      $s1, %lo(u_80029EE8+16)($a0)\n"
-"/*0x80004A58*/  daddu   $v0, $zero, $zero\n"
-"/*0x80004A5C*/  mflo    $v1\n"
-"/*0x80004A60*/  j       .L80004904\n"
-"/*0x80004A64*/  sh      $v1, 0x0010($a2)\n"
-".L80004A68:\n"
-"/*0x80004A68*/  li      $v0, 0x0090\n"
-"/*0x80004A6C*/  bne     $v1, $v0, .L80004934\n"
-"/*0x80004A70*/  daddu   $s1, $zero, $zero\n"
-"/*0x80004A74*/  j       .L80004990\n"
-"/*0x80004A78*/  lbu     $v0, 0x0016($a0)\n"
-".L80004A7C:\n"
-"/*0x80004A7C*/  lui     $a1, %hi(u_800287D8)\n"
-"/*0x80004A80*/  addiu   $a0, $a0, 0x0003\n"
-"/*0x80004A84*/  addiu   $a1, %lo(u_800287D8)\n"
-"/*0x80004A88*/  jal     str_80005360\n"
-"/*0x80004A8C*/  li      $a2, 0x0005\n"
-"/*0x80004A90*/  bnezl   $v0, .L800049B8\n"
-"/*0x80004A94*/  lw      $v0, %lo(w_80029320)($s0)\n"
-"/*0x80004A98*/  j       .L80004904\n"
-"/*0x80004A9C*/  li      $v0, 0x00F8\n"
-"\n"
-".set reorder\n"
-".set at\n"
-);
+    return (sector - current_fat.data_entry) / current_fat.cluster_size + 2;
+}
+
+/* Get the remaining no. sectors to read/write in the file */
+u32 FatGetFileSectors() {
+
+    return currentFile.sec_available;
+}
+
+/* Get the location of the record of the file */
+u32 FatGetFileHdrIdx() {
+
+    return currentFile.hdr_idx;
+}
+
+/* Get the size of the directory */
+u16 FatGetDirSize() {
+
+    return currentDir.size;
+}
+
+/* Get the first cluster of the directory */
+u32 FatGetDirCluster() {
+
+    return currentDir.entry_cluster;
+}
+
+u32 fat_80003770() {
+
+    return currentDir._10;
+}
+
+/* Get a record location from the record table */
+u32 FatGetRecord(u16 index) {
+
+    return recordTable[index];
+}
+
+/* No. sectors remaining in cluster */
+u16 FatGetRWLen(u32 sectors) {
+
+    u16 val;
+    if (currentFile.pos.in_cluster_ptr == 0) {
+        return current_fat.cluster_size < sectors ? current_fat.cluster_size : sectors;
+    }
+    val = current_fat.cluster_size - currentFile.pos.in_cluster_ptr;
+    if (val > sectors) val = sectors;
+    return val;
+}
+
+/* Get little-endian 32-bit value */
+u32 FatGet32(void *src) {
+
+    u8 *ptr = src;
+    return (u32) ptr[0] | (u32) ptr[1] << 8 | (u32) ptr[2] << 16 | (u32) ptr[3] << 24;
+}
+
+/* Get little-endian 16-bit value */
+u16 FatGet16(void *src) {
+
+    u8 *ptr = src;
+    return (u16) ptr[0] | (u16) ptr[1] << 8;
+}
+
+/* Set little-endian 32-bit value */
+void FatSet32(u32 val, void *dst) {
+
+    u8 *ptr = dst;
+    ptr[0] = (u32) val >> 0;
+    ptr[1] = (u32) val >> 8;
+    ptr[2] = (u32) val >> 16;
+    ptr[3] = (u32) val >> 24;
+}
+
+/* Load a sector from the FAT into the table cache */
+u8 fatCacheLoadTable(u32 sector) {
+
+    u8 resp = 0;
+
+    if (fat_cache.table_sec_idx == sector) return 0;
+
+    if (fat_cache.table_changed) {
+        fat_cache.table_changed = 0;
+        fat_cache.table_sec_idx += current_fat.fat_entry;
+        resp = DiskWriteFromRam(fat_cache.table_sec_idx, tableSector, 1);
+        if (resp) return resp;
+        resp = DiskWriteFromRam(fat_cache.table_sec_idx+current_fat.sectors_per_fat, tableSector, 1);
+        if (resp) return resp;
+        if (sector == 0x0FFFFFFF) return 0;
+    }
+
+    fat_cache.table_sec_idx = sector;
+    resp = diskReadToRam(sector + current_fat.fat_entry, tableSector, 1);
+    return resp;
+}
+
+/* Follow the cluster chain for one step */
+u8 fatGetTableRecord(FatPos *pos) {
+
+    u8 resp;
+    u32 cluster = pos->cluster;
+    resp = fatCacheLoadTable(cluster / 128);
+    if (resp) return resp;
+    cluster = FatGet32(&tableSector[(cluster & 127) * 4]);
+    if (cluster == 0x0FFFFFFF) return 0xF3;
+    pos->cluster = cluster;
+    return 0;
+}
+
+/* Seek ahead to the next cluster */
+u8 fatGetNextCluster(FatPos *pos) {
+
+    u8 resp = fatGetTableRecord(pos);
+    if (resp) return resp;
+    pos->in_cluster_ptr = 0;
+    pos->sector = fatClusterToSector(pos->cluster);
+    return 0;
+}
+
+/* Seek ahead a number of sectors within this cluster, and seek to the next */
+/* cluster if at the end of this cluster */
+u8 FatRWStepSectors(u16 sectors) {
+
+    u8 resp;
+    currentFile.pos.in_cluster_ptr += sectors;
+    if (currentFile.pos.in_cluster_ptr == current_fat.cluster_size) {
+        resp = fatGetNextCluster(&currentFile.pos);
+        if (resp) return resp;
+    }
+    else {
+        currentFile.pos.sector += sectors;
+    }
+    return 0;
+}
+
+/* Read/write a number of sectors to/from ROM */
+u8 FatRWFileRom(u32 dst, u32 sectors, u8 mode) {
+
+    u8 resp;
+
+    if (sectors > currentFile.sec_available) return 0xF3;
+    currentFile.sec_available -= sectors;
+
+    while (sectors) {
+
+        u16 len = FatGetRWLen(sectors);
+
+        if (mode == 1) {
+            resp = DiskWriteFromRom(currentFile.pos.sector, dst, len);
+            if (resp) return resp;
+        }
+        else {
+            resp = diskReadToRom(currentFile.pos.sector, dst, len);
+            if (resp) return resp;
+        }
+        sectors -= len;
+        if (sectors == 0 && currentFile.sec_available == 0) return 0;
+        resp = FatRWStepSectors(len);
+        if (resp) return resp;
+        dst += len;
+    }
+
+    return 0;
+}
+
+/* Read a number of sectors to ROM */
+u8 FatReadFileRom(u32 dst, u32 sectors) {
+
+    return FatRWFileRom(dst, sectors, 0);
+}
+
+/* Seek ahead one sector */
+u8 FatGetNextSector(FatPos *pos) {
+
+    u8 resp;
+    pos->in_cluster_ptr++;
+    pos->sector++;
+    if (pos->in_cluster_ptr == current_fat.cluster_size) {
+        resp = fatGetNextCluster(pos);
+        if (resp) return resp;
+    }
+    return 0;
+}
+
+/* Skip a number of sectors */
+u8 fatSkipSectors(u16 sectors) {
+
+    u8 resp;
+    currentFile.sec_available -= sectors;
+    while (sectors) {
+        if (!(sectors < current_fat.cluster_size || currentFile.pos.in_cluster_ptr != 0)) {
+            resp = fatGetNextCluster(&currentFile.pos);
+            if (resp) return resp;
+            sectors -= current_fat.cluster_size;
+            continue;
+        }
+        else {
+            resp = FatGetNextSector(&currentFile.pos);
+            if (resp) return resp;
+            sectors--;
+            continue;
+        }
+    }
+    return 0;
+}
+
+/* Read/write a number of sectors to/from RAM */
+u8 FatRWFileRam(void *dst, u16 sectors, u8 mode) {
+
+    u8 resp;
+
+    if (sectors > currentFile.sec_available) return 0xF3;
+    currentFile.sec_available -= sectors;
+
+    while (sectors) {
+
+        u16 len = FatGetRWLen(sectors);
+
+        if (mode == 1) {
+            resp = DiskWriteFromRam(currentFile.pos.sector, dst, len);
+            if (resp) return resp;
+        }
+        else {
+            resp = diskReadToRam(currentFile.pos.sector, dst, len);
+            if (resp) return resp;
+        }
+        sectors -= len;
+        if (sectors == 0 && currentFile.sec_available == 0) return 0;
+        resp = FatRWStepSectors(len);
+        if (resp) return resp;
+        dst += (u16)(512 * len);
+    }
+
+    return 0;
+}
+
+/* Read a number of sectors to RAM */
+u8 FatReadFileRam(void *dst, u16 sectors) {
+
+    return FatRWFileRam(dst, sectors, 0);
+}
+
+/* Load a sector from the disk into the data cache */
+u8 fatCacheLoadData(u32 sector) {
+
+    u8 resp = 0;
+
+    if (fat_cache.data_sec_idx == sector) return 0;
+
+    if (fat_cache.data_changed) {
+        fat_cache.data_changed = 0;
+        resp = DiskWriteFromRam(fat_cache.data_sec_idx, dataSector, 1);
+        if (resp) return resp;
+        if (sector == 0x0FFFFFFF) return 0;
+    }
+
+    fat_cache.data_sec_idx = sector;
+    resp = diskReadToRam(fat_cache.data_sec_idx, dataSector, 1);
+    return resp;
+}
+
+/* Get the next entry in the directory */
+u8 FatNextRecord() {
+
+    u8 resp;
+    if ((currentRecord.hdr_idx & 15) != 15) {
+        currentRecord.hdr_idx++;
+        currentRecord.hdr++;
+        return 0;
+    }
+    resp = FatGetNextSector(&currentRecord.pos);
+    if (resp) return resp;
+    currentRecord.hdr_idx = currentRecord.pos.sector * 16;
+    currentRecord.hdr = (FatRecordHdr *)dataSector;
+    resp = fatCacheLoadData(currentRecord.pos.sector);
+    return resp;
+}
+
+/* Open a record */
+u8 FatOpenRecord(u32 hdr_idx) {
+
+    u8 resp;
+    FatSetSector(&currentRecord.pos, hdr_idx / 16);
+    resp = fatCacheLoadData(currentRecord.pos.sector);
+    if (resp) return resp;
+    currentRecord.hdr_idx = hdr_idx;
+    currentRecord.hdr = (FatRecordHdr *)&dataSector[(hdr_idx & 15) * 32];
+    return 0;
+}
+
+/* Read a record chain and decode the filename/LFN */
+u8 FatReadRecord(u32 hdr_idx, FatRecord *rec, u8 *name) {
+
+    u8 resp;
+    FatRecordHdr *hdr;
+    u8 *attrib;
+    u8 *ptr;
+    u8 make_name = 0;
+
+    resp = FatOpenRecord(hdr_idx);
+    if (resp) return resp;
+
+    hdr = currentRecord.hdr;
+    attrib = &hdr->attrib;
+
+    if (name) make_name = 1;
+    if (make_name) *name = 0;
+
+    while (*attrib == 0xF) {
+        if (hdr->name[0] == 0xE5) return 0xFA;
+        if (make_name) {
+            u8 offset = (hdr->name[0]-1) & 15;
+            if (offset == 15) offset = 14;
+            ptr = &name[13*offset];
+            if (hdr->name[0] & 0x40) ptr[13] = 0;
+            for (u8 i = 0; i < 13; i++) {
+                *ptr++ = hdr->name[lfn_char_struct[i]];
+            }
+        }
+        resp = FatNextRecord();
+        if (resp) return resp;
+        hdr = currentRecord.hdr;
+        attrib = &hdr->attrib;
+    }
+
+    if (hdr->name[0] == 0xE5) return 0xFA;
+
+    if (rec) {
+        rec->hdr_idx = hdr_idx;
+        rec->dat_idx = currentRecord.hdr_idx;
+        rec->is_dir = *attrib & 0x10;
+        rec->cluster  = FatGet16(&hdr->cluster_hi) << 16;
+        rec->cluster |= FatGet16(&hdr->cluster_lo);
+        rec->size = FatGet32(&hdr->size);
+        rec->sec_available = rec->size / 512;
+        if (rec->size & 0x1FF) rec->sec_available++;
+    }
+
+    if (make_name && *name == 0) {
+        for (u8 i = 0; i < 8; i++) {
+            name[i] = hdr->name[i];
+        }
+        ptr = StrTrimSpace(name+8-1);
+        if (hdr->ext[0] != ' ') {
+            *ptr++ = '.';
+            *ptr++ = hdr->ext[0];
+            *ptr++ = hdr->ext[1];
+            *ptr++ = hdr->ext[2];
+            StrTrimSpace(ptr-1);
+        }
+    }
+
+    return 0;
+}
+
+/* Open a file */
+u8 fatOpenFile(u32 hdr_idx, u16 wr_sectors) {
+
+    u8 resp;
+    FatRecord rec;
+    resp = FatReadRecord(hdr_idx, &rec, NULL);
+    if (resp) return resp;
+    if (rec.is_dir) return 0xF5;
+    FatSetCluster(&currentFile.pos, rec.cluster);
+    currentFile.sec_available = rec.sec_available;
+    currentFile.hdr_idx = rec.hdr_idx;
+    bios_80000568(0);
+    return resp;
+}
+
+/* Open a file from a loaded record */
+u8 FatOpenFileFromRec(FatRecord *rec, u16 wr_sectors) {
+
+    return fatOpenFile(rec->dat_idx, wr_sectors);
+}
+
+/* Get a file record and full name */
+u8 fatGetFullName(u32 hdr_idx, FatFullRecord *frec) {
+
+    return FatReadRecord(hdr_idx, &frec->rec, frec->name);
+}
+
+/* Open a directory */
+u8 fatOpenDir(u32 cluster) {
+
+    u8 resp;
+    FatRecord rec;
+
+    currentDir.size = 0;
+    currentDir.entry_cluster = cluster;
+    currentDir.is_root = 0;
+    if (cluster > 2) {
+        resp = FatReadRecord(cluster, &rec, NULL);
+        if (resp) return resp;
+        if (!rec.is_dir) return 0xF6;
+        cluster = rec.cluster;
+    }
+    if (cluster <= 2) {
+        cluster = 2;
+        currentDir._10 = 0;
+    }
+    FatSetCluster(&currentDir.pos, cluster);
+    currentDir.current_idx = currentDir.pos.sector * 16;
+    currentDir._10 = currentDir.current_idx | 1;
+    return 0;
+}
+
+/* Read up to 1024 entries from the directory into the record table */
+u8 fatReadDir(u32 cluster) {
+
+    u8 resp;
+    FatRecordHdr *hdr;
+    FullDir *fdir = (FullDir *)&currentDir;
+    u32 hdr_idx;
+    u8 skip = 0;
+
+    resp = fatOpenDir(cluster);
+    if (resp) return resp;
+
+    hdr_idx = currentDir.pos.sector * 16;
+    for (;;) {
+
+        resp = fatCacheLoadData(currentDir.pos.sector);
+        if (resp) return resp;
+
+        hdr = (FatRecordHdr *)dataSector;
+        for (u8 i = 0; i < 16; i++, hdr++) {
+            if (hdr->name[0] == '\0') {
+                currentDir.current_idx = hdr_idx | i;
+                return 0;
+            }
+            if (hdr->name[0] == 0xE5 || hdr->name[0] == '.') {
+                skip = 0;
+                continue;
+            }
+            if (hdr->attrib == 0xF) {
+                if ((hdr->name[0] & 0xF0) == 0x40) {
+                    recordTable[currentDir.size] = hdr_idx | i;
+                    skip = 1;
+                }
+                continue;
+            }
+            if (hdr->attrib & (2|8)) {
+                skip = 0;
+                continue;
+            }
+            if (!skip) {
+                recordTable[fdir->dir.size] = hdr_idx | i;
+            }
+            if (++currentDir.size == 1024) {
+                currentDir.current_idx = hdr_idx | i;
+                return 0;
+            }
+            skip = 0;
+        }
+        hdr_idx += 16;
+        currentDir.pos.in_cluster_ptr++;
+        currentDir.pos.sector++;
+        if (currentDir.pos.in_cluster_ptr == current_fat.cluster_size) {
+            resp = fatGetNextCluster(&currentDir.pos);
+            if (resp == 0xF3) {
+                currentDir.is_root = 1;
+                break;
+            }
+            if (resp) return resp;
+            hdr_idx = currentDir.pos.sector * 16;
+        }
+    }
+    return 0;
+}
+
+/* Find the record location of a path */
+u8 fatFindRecord(u8 *name, u32 *hdr_idx) {
+
+    u8 resp;
+    u16 i;
+    u8 n;
+    FatFullRecord frec;
+    if (*name != '\0') {
+        *hdr_idx = 0;
+        for (;;) {
+            while (*name == '/') name++;
+            for (n = 0; name[n] != '\0'; n++) {
+                if (name[n] == '/') break;
+            }
+            resp = fatReadDir(*hdr_idx);
+            if (resp) return resp;
+            for (i = 0; i < currentDir.size; i++) {
+                resp = FatReadRecord(FatGetRecord(i), &frec.rec, frec.name);
+                if (resp) return resp;
+                if (frec.name[n] == '\0' && streql(name, frec.name, n)) {
+                    *hdr_idx = frec.rec.hdr_idx;
+                    if (name[n] == '\0') return 0;
+                    break;
+                }
+            }
+            if (i == currentDir.size) return name[n] == '\0' ? 0xF0 : 0xF7;
+            name += n;
+        }
+    }
+    return 0xFB;
+}
+
+/* Open a file */
+u8 fatOpenFileByName(u8 *name, u16 wr_sectors) {
+
+    u8 resp;
+    u32 hdr_idx;
+    resp = fatFindRecord(name + (name[0] == '/'), &hdr_idx);
+    if (resp) return resp;
+    resp = fatOpenFile(hdr_idx, wr_sectors);
+    return resp;
+}
+
+/* Mount the filesystem */
+u8 fatInit(FatWork *work) {
+
+    u8 resp;
+    u32 pbr_entry;
+    u32 fat_entry;
+    dataSector = work->data_sector;
+    tableSector = work->table_sector;
+    recordTable = work->table_buff;
+    memfill(&fat_cache, 0xFF, sizeof(FatCache));
+    fat_cache._08 = 0;
+    fat_cache.table_changed = 0;
+    fat_cache.data_changed = 0;
+    currentDir.entry_cluster = 0x0FFFFFFF;
+    resp = fatCacheLoadData(0);
+    if (resp) return resp;
+    if (dataSector[0x1FE] != 0x55) return 0xF8;
+    if (dataSector[0x1FF] != 0xAA) return 0xF8;
+    if (dataSector[0x00] == 0xEB && dataSector[0x02] == 0x90) {
+        pbr_entry = 0;
+    }
+    else {
+        u8 x = dataSector[0x1C2] - 11;
+        if (x > 1) return 0xF8;
+        pbr_entry = FatGet32(&dataSector[0x1C6]);
+        resp = fatCacheLoadData(pbr_entry);
+        if (resp) return resp;
+    }
+    if (dataSector[0x16] != 0) return 0xF8;
+    if (!StrCmp(&dataSector[0x52], (u8 *)"FAT", 3) && !StrCmp(&dataSector[0x03], (u8 *)"MSDOS", 5)) return 0xF8;
+    current_fat.cluster_size = dataSector[0x0D];
+    fat_entry = pbr_entry + FatGet16(&dataSector[0x0E]);
+    current_fat._0C = FatGet32(&dataSector[0x20]);
+    current_fat.sectors_per_fat = FatGet32(&dataSector[0x24]);
+    current_fat.fat_entry = fat_entry;
+    current_fat.data_entry = current_fat.sectors_per_fat * 2 + fat_entry;
+    current_fat._10 = 1024 / current_fat.cluster_size;
+    return 0;
+}

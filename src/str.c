@@ -2,23 +2,23 @@
 
 u8 *fmtPtr;
 
-void GfxFill(u16 *dst, u16 val, u32 len)
-{
+void GfxFill(u16 *dst, u16 val, u32 len) {
+
     len /= 2;
     while (len--) *dst++ = val;
 }
 
-void memcopy(const void *src, void *dst, u32 len)
-{
+void memcopy(const void *src, void *dst, u32 len) {
+
     memcpy(dst, src, len);
 }
 
-void memfill(void *dst, u8 val, u32 len)
-{
+void memfill(void *dst, u8 val, u32 len) {
+
     memset(dst, val, len);
 }
 
-u8 str_80005360(u8 *str1, u8 *str2, u8 len) {
+u8 StrCmp(u8 *str1, u8 *str2, u8 len) {
 
     u8 s1;
     u8 s2;
@@ -65,29 +65,26 @@ u8 slen(u8 *str) {
     return len;
 }
 
-u8 *str_80005998(u8 *str);
+u8 *StrGetExt(u8 *str);
 
-u8 str_800054E8(u8 *str1, u8 *str2)
-{
+u8 StrHasExt(u8 *str1, u8 *str2) {
+
     if (*str1 == '.') str1++;
-    return streq(str1, str_80005998(str2));
+    return streq(str1, StrGetExt(str2));
 }
 
-u8 str_80005530(u8 **a0, u8 *a1)
-{
-    while (*a0)
-    {
-        if (str_800054E8(*a0, a1)) return 1;
-        a0++;
+u8 StrHasExtList(u8 **list, u8 *str) {
+
+    for (; *list; list++) {
+        if (StrHasExt(*list, str)) return 1;
     }
     return 0;
 }
 
-u8 *str_800055A8(u8 *str)
-{
+u8 *StrGetBasename(u8 *str) {
+
     u8 *ptr = str;
-    while (*str++)
-    {
+    while (*str++) {
         if (*str == '/') ptr = str + 1;
     }
     return ptr;
@@ -134,7 +131,7 @@ void FmtDec(u32 val) {
 void FmtHex8(u8 val) {
 
     u8 hi = val >> 4;
-    u8 lo = val & 0xF;
+    u8 lo = val & 15;
     hi += (hi < 10 ? '0' : '7');
     lo += (lo < 10 ? '0' : '7');
     *fmtPtr++ = hi;
@@ -170,14 +167,12 @@ void FmtDecBuff(u8 *buff, u32 val) {
     fmtPtr = ptr;
 }
 
-u8 str_800058C0(u8 **a0)
-{
+u8 StrGetMaxLen(u8 **list) {
+
     u8 max = 0;
-    if (a0)
-    {
-        for (u8 i = 0; a0[i] != 0; i++)
-        {
-            u8 len = slen(a0[i]);
+    if (list) {
+        for (u8 i = 0; list[i]; i++) {
+            u8 len = slen(list[i]);
             if (max < len) max = len;
         }
     }
@@ -194,11 +189,10 @@ void strhicase(u8 *str, u16 len) {
 
 }
 
-u8 *str_80005998(u8 *str)
-{
+u8 *StrGetExt(u8 *str) {
+
     u8 *ptr = 0;
-    while (*str)
-    {
+    while (*str) {
         if (*str == '.') ptr = str;
         str++;
     }
@@ -206,26 +200,24 @@ u8 *str_80005998(u8 *str)
     return str;
 }
 
-u8 *str_800059D8(u8 *str)
-{
+u8 *StrTrimSpace(u8 *str) {
+
     while (*str == ' ') *str-- = 0;
     *++str = 0;
     return str;
 }
 
-void str_80005A10(u8 *str)
-{
+void StrStrip(u8 *str) {
+
     u8 *ptr = str;
     u8 start = 0;
-    while (*ptr == ' ')
-    {
+    while (*ptr == ' ') {
         ptr++;
         start++;
     }
     u8 len = 0;
     u8 pos = 0;
-    while (*ptr != 0)
-    {
+    while (*ptr != 0) {
         pos++;
         if (*ptr != ' ') len = pos;
         ptr++;
@@ -240,16 +232,16 @@ void FmtTime(u16 time) {
 
     FmtHex8(SysDecToBCD(time >> 11));
     FmtStr((u8 *)":");
-    FmtHex8(SysDecToBCD(time >> 5 & 0x3F));
+    FmtHex8(SysDecToBCD(time >> 5 & 63));
     FmtStr((u8 *)":");
-    FmtHex8(SysDecToBCD(2*(time & 0x1F)));
+    FmtHex8(SysDecToBCD(2*(time & 31)));
 }
 
 void FmtDate(u16 date) {
 
-    FmtHex8(SysDecToBCD(date & 0x1F));
+    FmtHex8(SysDecToBCD(date & 31));
     FmtStr((u8 *)".");
-    FmtHex8(SysDecToBCD(date >> 5 & 0xF));
+    FmtHex8(SysDecToBCD(date >> 5 & 15));
     FmtStr((u8 *)".");
     FmtDec(1980 + (date >> 9));
 }

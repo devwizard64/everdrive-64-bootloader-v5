@@ -99,8 +99,7 @@ void GfxChangePal(u8 y, u16 pal) {
 
     u16 *ptr = &gfx_buff[y * G_SCREEN_W];
     u8 len = G_SCREEN_W;
-    while (len--)
-    {
+    while (len--) {
         *ptr = (*ptr & 0x7F) + pal;
         ptr++;
     }
@@ -111,8 +110,7 @@ void GfxFillVLine(u16 chr, u8 x, u8 y, u8 height) {
     gSetXY(x, y);
     u16 ptr = g_cons_ptr;
     u16 val = chr + g_cur_pal;
-    while (height--)
-    {
+    while (height--) {
         gfx_buff[ptr] = val;
         ptr += G_SCREEN_W;
     }

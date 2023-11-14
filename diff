@@ -10,11 +10,14 @@ GCCN64PREFIX=${ROOTDIR}/bin/mips64-elf-
 OBJDUMP=${GCCN64PREFIX}objdump
 OBJDUMPFLAGS="-bbinary -mmips -EB --start-address=${1} --stop-address=${2} -zD"
 PROG_NAME=bootloader
-dd if=/dev/zero of=build/old.bin bs=1024 count=1 status=none
-dd if=/dev/zero of=build/new.bin bs=1024 count=1 status=none
-cat       ${PROG_NAME}.bin >> build/old.bin
-cat build/${PROG_NAME}.bin >> build/new.bin
-${OBJDUMP} ${OBJDUMPFLAGS} build/old.bin > build/old.asm
-${OBJDUMP} ${OBJDUMPFLAGS} build/new.bin > build/new.asm
+dump()
+{
+	dd if=/dev/zero of=build/dump.bin bs=1024 count=1 status=none
+	cat $1 >> build/dump.bin
+	${OBJDUMP} ${OBJDUMPFLAGS} build/dump.bin > $2
+}
+dump       ${PROG_NAME}.bin build/old.asm
+dump build/${PROG_NAME}.bin build/new.asm
 shift 2
 diff "$@" build/old.asm build/new.asm | colordiff
+rm -f build/dump.bin build/old.asm build/new.asm

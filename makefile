@@ -21,7 +21,7 @@ BOOTLOADER_OBJ := \
 	build/src/sys.o \
 	build/src/incs.o
 
-DRAGON_OBJ := \
+LIBDRAGON_OBJ := \
 	build/src/libdragon/entrypoint.o \
 	build/src/libdragon/n64sys.o \
 	build/src/libdragon/interrupt.o \
@@ -44,12 +44,12 @@ build/$(PROG_NAME).bin: build/$(PROG_NAME).elf
 	$(OBJCOPY) -O binary $< $@
 	sha1sum -c $(PROG_NAME).sha1
 
-build/$(PROG_NAME).elf: $(BOOTLOADER_OBJ) $(DRAGON_OBJ)
-	$(LD) $(LDFLAGS) -Tn64ld.x $(BOOTLOADER_OBJ) $(DRAGON_OBJ) -lc -lnosys -Map $(@:.elf=.map) -o $@
+build/$(PROG_NAME).elf: $(BOOTLOADER_OBJ) $(LIBDRAGON_OBJ)
+	$(LD) $(LDFLAGS) -Tn64ld.x $(BOOTLOADER_OBJ) $(LIBDRAGON_OBJ) -lc -lnosys -Map $(@:.elf=.map) -o $@
 
 $(BOOTLOADER_OBJ): CFLAGS += -fno-toplevel-reorder
 $(filter-out build/src/main.o,$(BOOTLOADER_OBJ)): CFLAGS += -G0 -O2
-$(DRAGON_OBJ): CFLAGS += -G0 -O1
+$(LIBDRAGON_OBJ): CFLAGS += -G0 -O1
 
 build/%.o: %.c
 	@mkdir -p $(dir $@)

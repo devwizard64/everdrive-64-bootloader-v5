@@ -1,31 +1,34 @@
 #include "everdrive.h"
 
-void UsbCmdc(u32 *buff)
-{
+/* ROM fill */
+void UsbCmdc(u32 *buff) {
+
     u32 data[512/4];
     u32 dst = buff[1];
     u32 len = buff[2];
     u32 fill = buff[3];
     for (int i = 0; i < 512/4; i++) data[i] = fill;
-    while (len--)
-    {
+    while (len--) {
         sysPI_wr(data, dst, 512);
         dst += 512;
     }
 }
 
-u8 UsbCmdw(u32 *buff)
-{
+/* RAM write (USB -> RAM) */
+u8 UsbCmdw(u32 *buff) {
+
     return bi_usb_rd((void *)buff[1], 512*buff[2]);
 }
 
-u8 UsbCmdr(u32 *buff)
-{
+/* RAM read (RAM -> USB) */
+u8 UsbCmdr(u32 *buff) {
+
     return bi_usb_wr((void *)buff[1], 512*buff[2]);
 }
 
-u8 UsbResp(u8 resp)
-{
+/* Send USB response */
+u8 UsbResp(u8 resp) {
+
     u8 buff[16];
     buff[0] = 'c';
     buff[1] = 'm';
@@ -35,15 +38,15 @@ u8 UsbResp(u8 resp)
     return bi_usb_wr(buff, 16);
 }
 
-u8 UsbCmdW(u32 *buff)
-{
+/* ROM write (USB -> ROM) */
+u8 UsbCmdW(u32 *buff) {
+
     u8 resp = 0;
     u8 data[512];
     u32 dst = buff[1];
     u32 len = buff[2];
     if (len) bi_usb_rd_start();
-    while (len--)
-    {
+    while (len--) {
         resp = bi_usb_rd_end(data);
         if (len) bi_usb_rd_start();
         if (resp) return resp;
@@ -53,14 +56,14 @@ u8 UsbCmdW(u32 *buff)
     return resp;
 }
 
-u8 UsbCmdR(u32 *buff)
-{
+/* ROM read (ROM -> USB) */
+u8 UsbCmdR(u32 *buff) {
+
     u8 resp = 0;
     u8 data[512];
     u32 src = buff[1];
     u32 len = buff[2];
-    while (len--)
-    {
+    while (len--) {
         sysPI_rd(data, src, 512);
         resp = bi_usb_wr(data, 512);
         if (resp) return resp;
@@ -69,8 +72,9 @@ u8 UsbCmdR(u32 *buff)
     return resp;
 }
 
-u8 UsbCmdf(u32 *buff)
-{
+/* Upload MCN (ALTERA Cyclone IV) firmware */
+u8 UsbCmdf(u32 *buff) {
+
     u8 resp;
     u8 data[0x40000];
     u32 len = buff[2];
@@ -81,8 +85,8 @@ u8 UsbCmdf(u32 *buff)
     return resp;
 }
 
-u8 usbListener()
-{
+u8 usbListener() {
+
     u8 resp;
     u8 cmd;
     u8 buff[16];
@@ -91,41 +95,33 @@ u8 usbListener()
     if (resp) return resp;
     if (buff[0] != 'c' || buff[1] != 'm' || buff[2] != 'd') return 0;
     cmd = buff[3];
-    if (cmd == 't')
-    {
+    if (cmd == 't') {
         resp = UsbResp(0);
     }
-    else if (cmd == 'r')
-    {
+    else if (cmd == 'r') {
         resp = UsbCmdr((u32 *)buff);
     }
-    else if (cmd == 'w')
-    {
+    else if (cmd == 'w') {
         resp = UsbCmdw((u32 *)buff);
     }
-    else if (cmd == 'R')
-    {
+    else if (cmd == 'R') {
         resp = UsbCmdR((u32 *)buff);
         return resp;
     }
-    else if (cmd == 'W')
-    {
+    else if (cmd == 'W') {
         resp = UsbCmdW((u32 *)buff);
         return resp;
     }
-    else if (cmd == 'f')
-    {
+    else if (cmd == 'f') {
         resp = UsbCmdf((u32 *)buff);
         UsbResp(resp);
         return resp;
     }
-    else if (cmd == 's')
-    {
+    else if (cmd == 's') {
         BiBootCfgClr(BI_BCFG_BOOTMOD);
         simulate_pif_boot();
     }
-    else if (cmd == 'c')
-    {
+    else if (cmd == 'c') {
         UsbCmdc((u32 *)buff);
     }
     return resp;

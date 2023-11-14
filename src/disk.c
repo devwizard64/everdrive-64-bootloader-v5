@@ -60,8 +60,8 @@ u32 crc7(u8 *buff, u32 len) {
     return (crc & 0xfe);
 }
 
-u8 disk_80002D08()
-{
+u8 DiskWriteFromRom(u32 sd_addr, u32 src, u16 slen) {
+
     return 0xDF;
 }
 
@@ -164,11 +164,11 @@ u8 diskOpenWrite(u32 saddr) {
     return 0;
 }
 
-u8 diskWrite(u32 saddr, void *src, u16 slen) {
+u8 DiskWriteFromRam(u32 sd_addr, void *src, u16 slen) {
 
     u8 resp;
 
-    resp = diskOpenWrite(saddr);
+    resp = diskOpenWrite(sd_addr);
     if (resp)return resp;
     disk_cur_addr += slen;
 
@@ -222,8 +222,8 @@ u8 diskReadToRam(u32 sd_addr, void *dst, u16 slen) {
     return 0;
 }
 
-u8 DiskCheckInit()
-{
+u8 DiskCheckInit() {
+
     u8 sp20[512];
     if (!BiBootCfgGet(BI_BCFG_SD_INIT)) return 1;
     disk_mode = DISK_MODE_RD;

@@ -146,8 +146,8 @@ u8 sysGetTvType() {
     return sys_boot_strap->region;
 }
 
-u16 SysRandom()
-{
+u16 SysRandom() {
+
     u16 a = hu_8002933E + 1;
     u16 b = ((u32 *)0x80000100)[a & 0x1065]/8 + a;
     u16 c = ((u32 *)0x80000400)[b & 0x1FFF]/2 + b;
@@ -161,8 +161,8 @@ void sysSI_dmaBusy(void) {
     while (SI_regs->status & (SI_STATUS_DMA_BUSY | SI_STATUS_IO_BUSY));
 }
 
-void sysExecPIF(void *inblock, void *outblock)
-{
+void sysExecPIF(void *inblock, void *outblock) {
+
     volatile struct SI_regs_s * const SI_regs = (struct SI_regs_s *) 0xa4800000;
     void * const PIF_RAM = (void *) 0x1fc007c0;
     volatile uint64_t inblock_temp[8];
@@ -379,43 +379,41 @@ const u16 crc_16_table[] = {
     0x6E17, 0x7E36, 0x4E55, 0x5E74, 0x2E93, 0x3EB2, 0x0ED1, 0x1EF0
 };
 
-u16 sys_800064C8(u16 a0, u16 a1)
-{
+u16 sys_800064C8(u16 a0, u16 a1) {
+
     return a0%a1 ? a0 - a0%a1 + a1 : a0;
 }
 
-u16 sys_80006500(void *a0, u16 len)
-{
-    u8 *ptr = a0;
+u16 sys_80006500(void *src, u16 len) {
+
+    u8 *ptr = src;
     u8 a = 0;
     u8 b = 0;
-    while (len--)
-    {
+    while (len--) {
         a += *ptr++;
         b += a;
     }
     return a << 8 | b;
 }
 
-u16 sys_80006558(void *a0, u16 a1, u16 a2)
-{
-    u8 *ptr = a0;
-    while (a1--)
-    {
-        a2 = crc_16_table[(a2 >> 8) ^ *ptr++] ^ (a2 << 8);
+u16 sys_80006558(void *src, u16 len, u16 crc) {
+
+    u8 *ptr = src;
+    while (len--) {
+        crc = crc_16_table[(crc >> 8) ^ *ptr++] ^ (crc << 8);
     }
-    return a2;
+    return crc;
 }
 
-u8 SysDecToBCD(u8 a0)
-{
-    if (a0 > 99) a0 = 99;
-    return (a0/10) << 4 | (a0%10);
+u8 SysDecToBCD(u8 val) {
+
+    if (val > 99) val = 99;
+    return (val/10) << 4 | (val%10);
 }
 
-u8 SysBCDToDec(u8 a0)
-{
-    return 10*(a0 >> 4) + (a0 & 0xF);
+u8 SysBCDToDec(u8 val) {
+
+    return 10*(val >> 4) + (val & 0xF);
 }
 
 void sdCrc16(void *src, u16 *crc_out) {
@@ -491,15 +489,15 @@ void sdCrc16(void *src, u16 *crc_out) {
 
 }
 
-u16 sys_800068B0(u16 a0, s16 a1, u16 a2, u16 a3)
-{
+u16 sys_800068B0(u16 a0, s16 a1, u16 a2, u16 a3) {
+
     a1 += a0/a2;
     if (a1 < 0) a1 += a3;
     return a2*(a1%a3) + a0%a2;
 }
 
-u16 sys_80006928(u16 a0, s16 a1, u16 a2)
-{
+u16 sys_80006928(u16 a0, s16 a1, u16 a2) {
+
     a1 += a0%a2;
     if (a1 < 0) a1 += a2;
     return a1%a2 + a2*(a0/a2);

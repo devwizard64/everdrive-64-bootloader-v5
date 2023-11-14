@@ -220,8 +220,8 @@ void bi_wr_swap(u8 swap_on);
 u8 diskInit();
 u8 diskReadToRam(u32 sd_addr, void *dst, u16 slen);
 u8 diskReadToRom(u32 sd_addr, u32 dst, u16 slen);
-u8 diskRead(void *dst, u32 saddr, u32 slen);
-u8 diskWrite(u32 saddr, void *src, u16 slen);
+u8 DiskWriteFromRam(u32 sd_addr, void *src, u16 slen);
+u8 DiskWriteFromRom(u32 sd_addr, u32 src, u16 slen);
 u8 diskCloseRW();
 u8 diskStop();
 
@@ -259,10 +259,15 @@ u8 BiMCNWr(void *src, u32 len);
 void simulate_pif_boot();
 
 /* fat.c */
-u32 fat_80003730();
-u8 fat_80003C00(int, u32);
-u8 fatOpenFileByeName(u8 *name, u32 wr_sectors);
-u8 fatInit(void *);
+typedef struct {
+    u8 data_sector[512];
+    u8 table_sector[512];
+    u32 table_buff[1024];
+} FatWork;
+u32 FatGetFileSectors();
+u8 FatReadFileRom(u32 dst, u32 sectors);
+u8 fatOpenFileByName(u8 *name, u16 wr_sectors);
+u8 fatInit(FatWork *work);
 
 /* gfx.c */
 void gSetY(u8 y);
@@ -271,14 +276,16 @@ void GfxFillRect(u16 chr, u8 x, u8 y, u8 width, u8 height);
 void GfxPrintCenter(u8 *str);
 void GfxAppendDec(u32 val);
 
-/* fmt.c */
+/* str.c */
 void GfxFill(u16 *dst, u16 val, u32 len);
 void memcopy(const void *src, void *dst, u32 len);
 void memfill(void *dst, u8 val, u32 len);
+u8 StrCmp(u8 *str1, u8 *str2, u8 len);
 u8 streql(u8 *str1, u8 *str2, u8 len);
 u8 slen(u8 *str);
 void FmtInit(u8 *str);
 void FmtDecBuff(u8 *buff, u32 val);
+u8 *StrTrimSpace(u8 *str);
 
 /* sys.c */
 void sysExecPIF(void *inblock, void *outblock);
